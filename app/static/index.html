@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coverage Copilot</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #14181f; --muted: #5d6675; --line: #e2e5ea;
+    --accent: #1f5fbf; --accent-ink: #ffffff; --chip: #e8effa; --chip-ink: #1f4f99;
+    --warn: #8a5a00; --warn-bg: #fff4dc; --user: #1f5fbf;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #171b21; --ink: #e8ebf0; --muted: #98a1b0; --line: #2a3039;
+      --accent: #5b9bff; --accent-ink: #0b1220; --chip: #1d2a3e; --chip-ink: #a9c8ff;
+      --warn: #ffd27a; --warn-bg: #2e2612; --user: #2a62b8;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  h1 { font-size: 17px; margin: 0; letter-spacing: -0.01em; }
+  h1 small { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+  label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  select { font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  main { max-width: 860px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; min-height: calc(100vh - 62px); }
+  #banner { display: none; background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 12px; }
+  #log { flex: 1; display: flex; flex-direction: column; gap: 14px; padding-bottom: 16px; }
+  .msg { max-width: 100%; padding: 12px 14px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .user { align-self: flex-end; background: var(--user); color: #fff; max-width: 80%; }
+  .bot { align-self: stretch; background: var(--panel); border: 1px solid var(--line); }
+  .bot .status { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .ref { display: inline-block; font-size: 11px; font-weight: 600; background: var(--chip); color: var(--chip-ink); border-radius: 6px; padding: 0 6px; margin: 0 2px; cursor: pointer; vertical-align: 2px; border: 0; }
+  .note { color: var(--muted); font-size: 13px; }
+  details { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 13px; }
+  summary { cursor: pointer; color: var(--muted); }
+  .src { margin: 8px 0; padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--bg); border-radius: 0 8px 8px 0; white-space: normal; }
+  .src b { display: block; font-size: 12px; }
+  .src.flash { outline: 2px solid var(--accent); }
+  .meta { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  form { display: flex; gap: 8px; position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 16px; }
+  textarea { flex: 1; font: inherit; resize: none; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); min-height: 46px; }
+  button.send { font: inherit; font-weight: 600; padding: 0 18px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  button.send:disabled { opacity: .5; cursor: default; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+  .examples button { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Coverage Copilot <small>Cobalt Harbor Mutual (fictional)</small></h1>
+  <div class="controls">
+    <label>I am a <select id="role"></select></label>
+    <label>State <select id="state"></select></label>
+  </div>
+</header>
+<main>
+  <div id="banner">Offline demo mode: no API key is configured, so answers are quoted from the retrieved policy text without calling Claude.</div>
+  <div class="examples" id="examples"></div>
+  <div id="log"></div>
+  <form id="f">
+    <textarea id="q" rows="1" placeholder="Ask about coverage, limits, deductibles, or claims…"></textarea>
+    <button class="send" id="send">Ask</button>
+  </form>
+</main>
+<script>
+const EXAMPLES = {
+  policyholder: ["How long will you pay for a hotel if a wildfire destroys my house?", "What's my deductible for hail damage?", "Am I covered if I crash while driving for Uber?", "Is mold covered?"],
+  adjuster: ["What's my reserve authority as an associate adjuster during a catastrophe?", "When do I refer a claim to SIU?", "Is continuous seepage covered, and what about the mold?"],
+  underwriter: ["Is a 22-year-old roof eligible for replacement cost?", "When do I refer a risk to a senior underwriter?"],
+};
+const $ = (id) => document.getElementById(id);
+const chatHistory = [];
+let msgCount = 0;
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+function renderExamples() {
+  const box = $("examples"); box.replaceChildren();
+  for (const q of EXAMPLES[$("role").value] || []) {
+    const b = el("button", null, q); b.type = "button";
+    b.onclick = () => { $("q").value = q; $("f").requestSubmit(); };
+    box.append(b);
+  }
+}
+
+async function init() {
+  const meta = await (await fetch("/api/meta")).json();
+  for (const r of meta.roles) $("role").append(new Option(r[0].toUpperCase() + r.slice(1), r));
+  for (const s of meta.states) $("state").append(new Option(s === "OTHER" ? "Other / not listed" : s, s));
+  if (meta.offline) $("banner").style.display = "block";
+  $("role").onchange = () => { chatHistory.length = 0; renderExamples(); };
+  $("state").onchange = () => { chatHistory.length = 0; };
+  renderExamples();
+}
+
+function renderAnswer(a) {
+  const id = ++msgCount;
+  const box = el("div", "msg bot");
+  if (a.status !== "answered") box.append(el("div", "status", a.status.replace("_", " ")));
+  for (const seg of a.segments) {
+    box.append(el("span", seg.note ? "note" : null, seg.text));
+    for (const n of seg.refs) {
+      const r = el("button", "ref", n); r.type = "button"; r.title = "Show source";
+      r.onclick = () => { const d = box.querySelector("details"); d.open = true; const s = $(`src-${id}-${n}`); s.scrollIntoView({block: "nearest"}); s.classList.add("flash"); setTimeout(() => s.classList.remove("flash"), 1200); };
+      box.append(r);
+    }
+  }
+  if (a.sources.length) {
+    const d = el("details"); d.append(el("summary", null, `${a.sources.length} source${a.sources.length > 1 ? "s" : ""}`));
+    for (const s of a.sources) {
+      const card = el("div", "src"); card.id = `src-${id}-${s.n}`;
+      card.append(el("b", null, `[${s.n}] ${s.title} · ${s.doc_version}`), el("span", null, s.cited_text));
+      d.append(card);
+    }
+    box.append(d);
+  }
+  const ms = Math.round(a.latency_ms.total || 0);
+  box.append(el("div", "meta", `${ms} ms · ${a.model}${a.cost_usd ? ` · $${a.cost_usd.toFixed(4)}` : ""} · trace ${a.trace_id}`));
+  $("log").append(box);
+  box.scrollIntoView({block: "end", behavior: "smooth"});
+}
+
+$("f").onsubmit = async (e) => {
+  e.preventDefault();
+  const question = $("q").value.trim(); if (!question) return;
+  $("q").value = ""; $("send").disabled = true;
+  $("log").append(el("div", "msg user", question));
+  try {
+    const res = await fetch("/api/ask", { method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ question, role: $("role").value, state: $("state").value, history: chatHistory }) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const a = await res.json();
+    renderAnswer(a);
+    if (a.status === "answered") chatHistory.push({role: "user", content: question}, {role: "assistant", content: a.answer});
+  } catch (err) {
+    $("log").append(el("div", "msg bot", `Request failed: ${err.message}`));
+  } finally { $("send").disabled = false; $("q").focus(); }
+};
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("f").requestSubmit(); } });
+init();
+</script>
+</body>
+</html>

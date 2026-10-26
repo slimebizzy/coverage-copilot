@@ -1,0 +1,8 @@
+{"id": "h01", "role": "policyholder", "state": "OTHER", "question": "My detached garage burned down. Is it covered and up to what amount?", "expected": ["HO3 §2.2"], "must_include": ["10%"], "category": "limits"}
+{"id": "h02", "role": "policyholder", "state": "OTHER", "question": "Someone stole my guns from the house. What's the limit?", "expected": ["HO3 §2.4"], "must_include": ["2,500"], "category": "sublimit"}
+{"id": "h03", "role": "policyholder", "state": "OTHER", "question": "Will you pay for the tarp I put on my roof after the storm?", "expected": ["HO3 §3.2"], "must_include": ["receipts"], "category": "additional-coverage"}
+{"id": "h04", "role": "policyholder", "state": "OTHER", "question": "Sewage came up through my basement drain. Covered?", "expected": ["HO3 §5.2"], "must_include": ["endorsement"], "category": "exclusion"}
+{"id": "h05", "role": "policyholder", "state": "OTHER", "question": "Can you cancel my car insurance after I've had it for six months?", "expected": ["PAP §7.3"], "must_include": ["nonpayment"], "category": "auto"}
+{"id": "h06", "role": "policyholder", "state": "OTHER", "question": "My tires got damaged by a pothole. Will collision pay?", "expected": ["PAP §5.4"], "must_include": ["road damage"], "category": "auto"}
+{"id": "h07", "role": "policyholder", "state": "TX", "question": "How long after a hailstorm can I still file a claim?", "expected": ["TX-WH §3.1"], "must_include": ["one year"], "category": "endorsement"}
+{"id": "h08", "role": "adjuster", "state": "OTHER", "question": "The insured wants to invoke appraisal. What's my deadline to respond?", "expected": ["CHG §4.3"], "must_include": ["5 business days"], "category": "internal"}
