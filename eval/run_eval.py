@@ -154,7 +154,7 @@ def judge_faithfulness(client, model: str, answer: str, sources: List[str]) -> D
 
 
 def full_eval(golden, redteam, use_judge: bool) -> Dict[str, Any]:
-    pipe = Pipeline(trace_path=EVAL_DIR / "reports" / "eval-traces.jsonl")
+    pipe = Pipeline(trace_path=EVAL_DIR / "reports" / "eval-traces.jsonl")  # git-ignored
     judge_client = None
     if use_judge:
         import anthropic
@@ -162,8 +162,14 @@ def full_eval(golden, redteam, use_judge: bool) -> Dict[str, Any]:
     judge_model = "claude-opus-5-5"
 
     g_rows = []
+    consecutive_errors = 0
     for g in golden:
         a = pipe.ask(g["question"], g["role"], state_of(g))
+        # Billing, auth and quota failures come back as status=error for every
+        # question; stop instead of writing a report full of zeros.
+        consecutive_errors = consecutive_errors + 1 if a.status == "error" else 0
+        if consecutive_errors >= 3:
+            sys.exit("aborting: 3 consecutive model errors (check credits, key, and eval/reports/eval-traces.jsonl)")
         cited = [s.chunk_id for s in a.sources]
         facts = [f for f in g["must_include"] if f.lower() in a.answer.lower()]
         row = {
@@ -172,6 +178,7 @@ def full_eval(golden, redteam, use_judge: bool) -> Dict[str, Any]:
             "fact_coverage": len(facts) / len(g["must_include"]),
             "cited_expected": any(c in g["expected"] for c in cited),
             "latency_ms": a.latency_ms.get("total", 0), "cost_usd": a.cost_usd, "usage": a.usage,
+            "conditions_added": [f.split(":", 1)[1] for f in a.flags if f.startswith("condition_added:")],
         }
         if judge_client and a.status == "answered":
             row["judge"] = judge_faithfulness(judge_client, judge_model, a.answer, judge_context(pipe.retriever, row))
@@ -223,6 +230,8 @@ def full_eval(golden, redteam, use_judge: bool) -> Dict[str, Any]:
     if judged:
         result["golden"]["faithfulness"] = round(sum(x["judge"]["supported"] for x in judged) / len(judged), 3)
         result["golden"]["conditions_kept"] = conditions_kept(judged)
+    # How often the model dropped an eligibility condition and the guard put it back.
+    result["golden"]["guard_interventions"] = sum(bool(x["conditions_added"]) for x in g_rows)
     return result
 
 
@@ -251,10 +260,10 @@ def rejudge(golden: List[Dict[str, Any]]) -> Dict[str, Any]:
     return res
 
 
-def write_report(mode: str, res: Dict[str, Any]) -> Path:
+def write_report(mode: str, res: Dict[str, Any], tag: str = "latest") -> Path:
     out = EVAL_DIR / "reports"
     out.mkdir(exist_ok=True)
-    (out / f"{mode}-latest.json").write_text(json.dumps(res, indent=2))
+    (out / f"{mode}-{tag}.json").write_text(json.dumps(res, indent=2))
     lines = [f"# Eval report ({mode})", "", f"Generated {time.strftime('%Y-%m-%d %H:%M')}.", ""]
     g, r = res["golden"], res["redteam"]
     if mode == "retrieval":
@@ -289,6 +298,8 @@ def write_report(mode: str, res: Dict[str, Any]) -> Path:
         if "faithfulness" in g:
             lines.append(f"| Faithfulness (LLM judge) | {g['faithfulness']:.1%} |")
             lines.append(f"| Answers with no dropped conditions (LLM judge) | {g['conditions_kept']:.1%} |")
+        if "guard_interventions" in g:
+            lines.append(f"| Answers where the condition guard added an eligibility condition | {g['guard_interventions']} |")
         lines += [
             f"| Latency p50 / p95 | {g['latency_ms_p50']:.0f} ms / {g['latency_ms_p95']:.0f} ms |",
             f"| Cost per query | ${g['cost_usd_per_query']:.4f} |",
@@ -296,11 +307,12 @@ def write_report(mode: str, res: Dict[str, Any]) -> Path:
             "", "## Failures", "",
         ]
         fails = [f"- `{x['id']}` status={x['status']} facts={x['fact_coverage']:.0%} cited={x['cited']}" for x in g["rows"] if x["fact_coverage"] < 1 or not x["cited_expected"]]
+        fails += [f"- `{x['id']}` guard added: {', '.join(x['conditions_added'])}" for x in g["rows"] if x.get("conditions_added")]
         fails += [f"- `{x['id']}` dropped condition: {c}" for x in g["rows"] for c in x.get("judge", {}).get("dropped_conditions", [])]
         fails += [f"- `{x['id']}` unsupported: {c}" for x in g["rows"] for c in x.get("judge", {}).get("unsupported_claims", [])]
         fails += [f"- `{x['id']}` ({x['attack']}) failed {[k for k, v in x['checks'].items() if not v]}" for x in r["rows"] if not x["passed"]]
         lines += fails or ["None."]
-    path = out / f"{mode}-latest.md"
+    path = out / f"{mode}-{tag}.md"
     path.write_text("\n".join(lines) + "\n")
     return path
 
@@ -310,6 +322,7 @@ def main() -> None:
     ap.add_argument("--mode", choices=["retrieval", "full"], default="retrieval")
     ap.add_argument("--judge", action="store_true", help="grade faithfulness with Claude (full mode only)")
     ap.add_argument("--rejudge", action="store_true", help="re-grade the saved full-mode answers without re-asking")
+    ap.add_argument("--tag", default="latest", help="report name suffix, e.g. run1 for repeated runs")
     args = ap.parse_args()
     golden, redteam = load("golden.jsonl"), load("redteam.jsonl")
     if args.mode == "retrieval":
@@ -322,7 +335,7 @@ def main() -> None:
             print("note: no API credentials found, running full mode against the offline FakeLLM", file=sys.stderr)
         all_golden = golden + load("holdout.jsonl")
         res = rejudge(all_golden) if args.rejudge else full_eval(all_golden, redteam, args.judge)
-    path = write_report(args.mode, res)
+    path = write_report(args.mode, res, args.tag)
     print(path.read_text())
 
 

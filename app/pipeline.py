@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .conditions import enforce
 from .guardrails import check_input, scrub_output
 from .ingest import Chunk, load_corpus
 from .llm import LLM, LLMResult, cost_usd, default_llm
@@ -170,7 +171,7 @@ class Pipeline:
         numbering: Dict[str, int] = {}
         segments: List[Dict[str, Any]] = []
         for part in result.parts:
-            refs = []
+            refs, cited = [], []
             for c in part.citations:
                 if c.source not in allowed:
                     ans.flags.append(f"citation_outside_context:{c.source}")
@@ -180,12 +181,17 @@ class Pipeline:
                     chunk = allowed[c.source]
                     ans.sources.append(SourceRef(numbering[c.source], c.source, chunk.title, chunk.version, c.cited_text))
                 refs.append(numbering[c.source])
+                cited.append(c.cited_text)
             text, pii = scrub_output(part.text)
             ans.flags.extend(f"output_pii:{k}" for k in pii)
-            segments.append({"text": text, "refs": sorted(set(refs))})
+            segments.append({"text": text, "refs": sorted(set(refs)), "cited": cited})
 
         if not ans.sources:
             return self._finish(ans, "unsupported", MESSAGES["unsupported"], t0, timings, question, role, state, reason="no_citations")
+        # The prompt asks the model to keep eligibility conditions; this guarantees it.
+        ans.flags.extend(enforce(segments))
+        for seg in segments:
+            seg.pop("cited", None)
         ans.segments = segments
         answer_text = "".join(s["text"] for s in segments).strip()
         if role == "policyholder":
