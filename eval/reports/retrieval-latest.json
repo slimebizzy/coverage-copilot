@@ -1,8 +1,8 @@
 {
   "golden": {
-    "n": 32,
+    "n": 40,
     "recall_at_k": 1.0,
-    "mrr": 0.927,
+    "mrr": 0.929,
     "gated_wrongly": 0,
     "misses": []
   },

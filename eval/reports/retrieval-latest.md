@@ -1,14 +1,14 @@
 # Eval report (retrieval)
 
-Generated 2026-10-26 01:24.
+Generated 2026-10-26 11:41.
 
 Corpus: 84 chunks. Top-k = 6. No-answer gate: top BM25 score < 4.0.
 
 | Metric | Value |
 |---|---|
-| Golden questions | 32 |
+| Golden questions | 40 |
 | Recall@6 (expected sections retrieved) | 100.0% |
-| MRR | 0.927 |
+| MRR | 0.929 |
 | Answerable questions wrongly gated as not-found | 0 |
 | Red team: access control, jurisdiction and PII checks passed | 12/12 |
 | Red team: refusals stopped before any model call | 4/5 |

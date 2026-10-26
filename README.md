@@ -66,16 +66,16 @@ Code map: `app/ingest.py` (chunking, metadata, endorsement links) · `app/retrie
 
 ### Retrieval (free to run: `make eval`)
 
-| | Golden set (32 questions) | Held-out set (8 questions, never tuned on) |
+| | Golden set (32 original questions; 40 with condition probes) | Held-out set (8 questions, never tuned on) |
 |---|---|---|
 | Recall@6, v0 (plain BM25) | 90.6% | n/a |
 | Recall@6, v1 (query expansion + stemming fix) | **100%** | **87.5%** |
-| MRR, v0 → v1 | 0.789 → **0.927** | 0.708 |
+| MRR, v0 → v1 | 0.789 → **0.927** (0.929 on all 40) | 0.708 |
 | Answerable questions wrongly gated as "not found", v0 → v1 | 3 → **0** | 0 |
 
 How v0 became v1: the eval listed five misses. Each was a vocabulary gap ("drove off" vs. *hit-and-run*, "leaking under my sink" vs. *continuous seepage*, "disagree with the estimate" vs. *appraisal*). One was a stemmer bug that turned "earthquakes" into "earthquak". The fix was a domain synonym table plus the stemmer repair, each traced to a specific failing question (`eval/reports/retrieval-v0-baseline.md`).
 
-The held-out number keeps this honest. The expansions were tuned on the golden set, so 100% there is optimistic. 87.5% on unseen phrasings is the number I'd quote to a customer. The one held-out miss ("stole my guns" vs. *firearms*) is exactly the failure dense embeddings fix, which is the top roadmap item.
+The 8 condition probes added later missed twice on first try ("froze" vs. *freezing*, "list every item" vs. *itemized inventory*), so the same fix was applied; all 40 are now retrieved. The held-out number keeps this honest. The expansions were tuned on the golden set, so 100% there is optimistic. 87.5% on unseen phrasings is the number I'd quote to a customer. The one held-out miss ("stole my guns" vs. *firearms*) is exactly the failure dense embeddings fix, which is on the roadmap.
 
 ### Red team (12 attacks)
 
@@ -83,30 +83,50 @@ The held-out number keeps this honest. The expansions were tuned on the golden s
 
 ### End-to-end with Claude (`make eval-full`)
 
-40 questions (golden + held-out) and 12 attacks against `claude-opus-5-5` at effort `medium`. Full report: [`eval/reports/full-latest.md`](eval/reports/full-latest.md).
+48 questions (40 golden including 8 condition probes, plus 8 held-out) and 12 attacks against `claude-opus-5-5` at effort `medium`. Full report: [`eval/reports/full-latest.md`](eval/reports/full-latest.md).
 
 | Metric | Value |
 |---|---|
-| Answered with citations | 40/40 |
-| Key-fact coverage (the expected number or term appears in the answer) | **97.5%** |
-| Cited an expected section | **97.5%** |
-| Faithfulness (LLM judge, every claim backed by the retrieved sources) | **82.5%** (33/40) |
+| Answered with citations | 47/48 (the 48th correctly said "not found") |
+| Key-fact coverage (the expected number or term appears in the answer) | **97.9%** |
+| Cited an expected section | **97.9%** |
+| Faithfulness (LLM judge, every claim backed by the retrieved sources) | **89.4%** |
+| Answers with no dropped conditions (LLM judge) | **89.4%** |
 | Red team passed | **12/12** |
-| Latency p50 / p90 | 7.0 s / 10.4 s (2 of 40 requests hung; see below) |
-| Cost per query | **$0.021** ($0.86 for the run) |
-| Input tokens served from prompt cache | 42% |
+| Latency p50 / p90 / max | 7.8 s / 11.7 s / 15.9 s |
+| Cost per query | **$0.023** ($1.12 for the run) |
+| Input tokens served from prompt cache | 44% |
 
-**What the first run found**, and what changed because of it:
+The LLM-judge numbers move about ±5 points when the same answers are graded twice, so read small changes in them as noise.
+
+#### Run 2: the dropped-condition fix
+
+Run 1 surfaced one material error (g03). The California contents advance was described as applying after any total loss, without its "declared state of emergency" condition. Three steps:
+
+1. **Measured it properly.** I added 8 golden questions that probe conditions (c01–c08). On the old prompt, all 8 passed the key-fact check, because the condition words appear *somewhere* in each answer. A keyword check can't tell whether a condition is attached to the benefit it limits. So I added a `dropped_conditions` check to the LLM judge. Re-grading run 1's answers with it found 2 of 40 with a dropped condition (g02, g03), both missing "relating to a declared state of emergency."
+2. **Tightened the prompt.** New rule: state the condition in the same sentence or bullet as the benefit, every time the benefit is mentioned, including in lists of related benefits.
+3. **Re-ran everything.**
+
+| | Run 1 (old prompt, 40 questions) | Run 2 (new prompt, 48 questions) |
+|---|---|---|
+| Benefits stated without their eligibility trigger (state of emergency, catastrophe, fraud) | 2 | **0** |
+| Condition-probe questions with nothing dropped (c01–c08 + g03) | n/a | 8/9 |
+| Answers with no dropped condition of any kind | 95.0% | 89.4% |
+| Faithfulness | 77.5–82.5% (two gradings) | 89.4% |
+
+**Honest read:** the specific failure is gone in this run. The broader dropped-condition rate didn't improve, though. The 5 answers flagged in run 2 leave out secondary qualifiers rather than eligibility triggers: the 48-hour waiting period on theft transportation (c06), "unless otherwise noted" on the deductible (h01), the full-compliance precondition on the suit deadline (g13). The eval set also grew, adding c06. A prompt is a soft control. For conditions that decide eligibility, the next step is a **deterministic check**: flag or annotate any cited sentence from a chunk that contains a registered condition phrase when the condition doesn't appear alongside it. The prompt run reports are kept as [`full-v2-old-prompt.md`](eval/reports/full-v2-old-prompt.md) (run 1 answers, re-graded) and `full-latest.md` (run 2).
+
+#### Run 1: what the first run found, and what changed because of it
 
 - **The grader was wrong before the model was.** The first judge pass scored faithfulness at 30%. Reading the flagged claims showed the judge only saw the snippets the model *cited*, not the full sections and titles it was *given*. It flagged "this is the Texas endorsement" as unsupported because the jurisdiction lives in the title. After the fix, the same saved answers scored 82.5% (`--rejudge` re-grades them without re-asking). The 30% report is kept as [`full-v1-snippet-judge.md`](eval/reports/full-v1-snippet-judge.md).
 - **One red-team "failure" was a bad check.** The coverage-promise test matched "is approved" inside *"I can't confirm that your roof claim is approved."* That's the behavior we want. The check now looks at each sentence and skips negated ones.
 - **The 7 remaining faithfulness flags, triaged by hand:**
-  - **1 material error (g03).** The answer described the California contents advance as applying to any total loss and dropped the "declared state of emergency" condition. That's the kind of mistake that matters in a regulated product, so it's the first prompt fix on the roadmap.
+  - **1 material error (g03).** The answer described the California contents advance as applying to any total loss and dropped the "declared state of emergency" condition. That's the kind of mistake that matters in a regulated product; see Run 2 above.
   - **1 unsupported advice (h03).** "Avoid permanent repairs until the damage is documented" sounds reasonable, but it isn't in the homeowners form.
   - **3 outside knowledge that is true but not retrieved (g02, g06, g31).** For example, "Coverage A is your dwelling coverage."
   - **2 judge artifacts (g30, h08).** The answer repeated the request's own context line, "no state endorsement applies."
 - **Abstaining instead of guessing.** On the one held-out retrieval miss (h02, firearms), the model said the retrieved sections don't state a firearms limit instead of inventing one. It scores 0% on key facts, which is the correct failure mode.
-- **Two hung requests.** One took 611 s and one 99 s, because the SDK's default timeout is 10 minutes. The client now uses a 60 s timeout with 2 retries. The p50 and p90 above are over all 40 requests; the two hangs only show up from p95 up.
+- **Two hung requests.** One took 611 s and one 99 s, because the SDK's default timeout is 10 minutes. The client now uses a 60 s timeout with 2 retries; run 2's slowest request was 15.9 s.
 - **Caching works but isn't the main cost lever.** The 1,293-token system prompt is cached after the first call (42% of input tokens served from cache). Most of the cost is output: answers average about 900 tokens. Shorter answers are the next cost lever.
 
 ## Design decisions and tradeoffs
@@ -136,7 +156,7 @@ API: `POST /api/ask {question, role, state, history}` → `{status, answer, segm
 
 ## Roadmap
 
-1. **Fix the g03 class of error:** require every condition attached to a benefit ("relating to a declared state of emergency") to be carried into the answer. Add golden questions that probe conditions specifically.
+1. **Deterministic condition guard:** a registry of eligibility-deciding phrases ("relating to a declared state of emergency", "unless the claim involves suspected fraud"). Any answer sentence that cites a chunk containing one must carry it, or the pipeline annotates it. Success = 0 dropped eligibility triggers across 3 repeated eval runs.
 2. **Shorter answers:** cap length for policyholders. Measure cost and fact coverage before and after.
 3. **Hybrid retrieval.** Add dense embeddings fused with BM25 via reciprocal rank fusion, then a reranker. Success = held-out recall ≥ 95% with golden recall unchanged.
 4. **Grow the eval to 150+ questions,** including multi-turn follow-ups. Sample real questions from traces once there is traffic.

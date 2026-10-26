@@ -55,6 +55,9 @@ SYNONYMS: Dict[str, str] = {
     "disagree": "appraisal fail to agree amount of loss",
     "dispute": "appraisal fail to agree amount of loss",
     "estimate": "amount of loss appraisal",
+    "froze": "freezing plumbing system vacant unoccupied heat",
+    "frozen": "freezing plumbing system vacant unoccupied heat",
+    "itemize": "itemized inventory",
 }
 
 # Multi-word phrases checked against the raw query before tokenizing.
@@ -63,6 +66,9 @@ PHRASES: Dict[str, str] = {
     "drove away": "hit-and-run uninsured motor vehicle",
     "fled the scene": "hit-and-run uninsured motor vehicle",
     "under my sink": "plumbing system seepage leakage",
+    "burns down": "total loss fire",
+    "burned down": "total loss fire",
+    "every item": "itemized inventory",
 }
 
 
