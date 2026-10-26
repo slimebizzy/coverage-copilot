@@ -66,7 +66,9 @@ class AnthropicLLM:
     def __init__(self, model: str = MODEL, effort: str = EFFORT):
         import anthropic
 
-        self.client = anthropic.Anthropic()
+        # The SDK default is a 10-minute timeout; one hung request in the first eval
+        # took 611 s. A chat answer that slow is a failure anyway.
+        self.client = anthropic.Anthropic(timeout=60.0, max_retries=2)
         self.model, self.effort = model, effort
         self.name = f"anthropic:{model}"
 

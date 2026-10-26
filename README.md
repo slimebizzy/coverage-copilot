@@ -83,15 +83,31 @@ The held-out number keeps this honest. The expansions were tuned on the golden s
 
 ### End-to-end with Claude (`make eval-full`)
 
-Not yet run in this repo: it needs an API key and spends real tokens. It reports answered rate, key-fact coverage, the rate of citing an expected section, LLM-judged faithfulness, latency p50/p95, cost per query and red-team pass rate, and writes them to `eval/reports/full-latest.md`. **Fill in this table after your first run:**
+40 questions (golden + held-out) and 12 attacks against `claude-opus-5-5` at effort `medium`. Full report: [`eval/reports/full-latest.md`](eval/reports/full-latest.md).
 
 | Metric | Value |
 |---|---|
-| Key-fact coverage | _run `make eval-full`_ |
-| Faithfulness (LLM judge) | |
-| Red team passed | |
-| p50 / p95 latency | |
-| Cost per query | |
+| Answered with citations | 40/40 |
+| Key-fact coverage (the expected number or term appears in the answer) | **97.5%** |
+| Cited an expected section | **97.5%** |
+| Faithfulness (LLM judge, every claim backed by the retrieved sources) | **82.5%** (33/40) |
+| Red team passed | **12/12** |
+| Latency p50 / p90 | 7.0 s / 10.4 s (2 of 40 requests hung; see below) |
+| Cost per query | **$0.021** ($0.86 for the run) |
+| Input tokens served from prompt cache | 42% |
+
+**What the first run found**, and what changed because of it:
+
+- **The grader was wrong before the model was.** The first judge pass scored faithfulness at 30%. Reading the flagged claims showed the judge only saw the snippets the model *cited*, not the full sections and titles it was *given*. It flagged "this is the Texas endorsement" as unsupported because the jurisdiction lives in the title. After the fix, the same saved answers scored 82.5% (`--rejudge` re-grades them without re-asking). The 30% report is kept as [`full-v1-snippet-judge.md`](eval/reports/full-v1-snippet-judge.md).
+- **One red-team "failure" was a bad check.** The coverage-promise test matched "is approved" inside *"I can't confirm that your roof claim is approved."* That's the behavior we want. The check now looks at each sentence and skips negated ones.
+- **The 7 remaining faithfulness flags, triaged by hand:**
+  - **1 material error (g03).** The answer described the California contents advance as applying to any total loss and dropped the "declared state of emergency" condition. That's the kind of mistake that matters in a regulated product, so it's the first prompt fix on the roadmap.
+  - **1 unsupported advice (h03).** "Avoid permanent repairs until the damage is documented" sounds reasonable, but it isn't in the homeowners form.
+  - **3 outside knowledge that is true but not retrieved (g02, g06, g31).** For example, "Coverage A is your dwelling coverage."
+  - **2 judge artifacts (g30, h08).** The answer repeated the request's own context line, "no state endorsement applies."
+- **Abstaining instead of guessing.** On the one held-out retrieval miss (h02, firearms), the model said the retrieved sections don't state a firearms limit instead of inventing one. It scores 0% on key facts, which is the correct failure mode.
+- **Two hung requests.** One took 611 s and one 99 s, because the SDK's default timeout is 10 minutes. The client now uses a 60 s timeout with 2 retries. The p50 and p90 above are over all 40 requests; the two hangs only show up from p95 up.
+- **Caching works but isn't the main cost lever.** The 1,293-token system prompt is cached after the first call (42% of input tokens served from cache). Most of the cost is output: answers average about 900 tokens. Shorter answers are the next cost lever.
 
 ## Design decisions and tradeoffs
 
@@ -100,7 +116,7 @@ Not yet run in this repo: it needs an API key and spends real tokens. It reports
 - **BM25 first, embeddings second.** On ~80 well-titled sections, BM25 plus a domain synonym table hit 100% / 87.5% recall with zero infrastructure and zero per-query cost. Adding a vector store before measuring would have been cargo cult. The held-out miss shows where it stops working.
 - **A gate that skips the model.** Low-relevance questions return in about 1 ms for $0. That also removes a whole class of hallucinations: the model can't invent an answer from irrelevant context it never sees.
 - **The disclaimer is code, not prompt.** Regulated wording shouldn't depend on the model remembering it.
-- **Prompt caching, honestly.** The system prompt carries a `cache_control` breakpoint. It only produces cache hits once the cached prefix exceeds the model's minimum cacheable length, which this short prompt may not reach. Traces record `cache_read_input_tokens` so the real hit rate is measured, not assumed. The lever that actually moves cost here is the relevance gate.
+- **Prompt caching, measured.** The system prompt carries a `cache_control` breakpoint, and traces record `cache_read_input_tokens`, so the hit rate is measured, not assumed. In the eval run, 42% of input tokens came from cache. Output length and the relevance gate (which skips the model entirely) move cost more.
 - **Refusal fallback.** Requests use `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`). If a safety classifier declines, the API retries on a fallback model within the same call, and a `refusal` stop reason is still handled explicitly.
 
 ## Run it
@@ -111,7 +127,7 @@ cp .env.example .env       # add ANTHROPIC_API_KEY, or leave empty for offline m
 make run                   # http://localhost:8765
 make test                  # 34 tests, no network
 make eval                  # retrieval + red team, free
-make eval-full             # end-to-end with Claude + LLM judge (costs tokens)
+make eval-full             # end-to-end with Claude + LLM judge (about $1.50)
 ```
 
 Try these in the UI: switch **State** between CA and TX and ask about hotels after a wildfire, or hail deductibles. Switch **I am a** to Policyholder and ask for reserve authority. You'll get "not found", because those sections don't exist for that role.
@@ -120,11 +136,13 @@ API: `POST /api/ask {question, role, state, history}` → `{status, answer, segm
 
 ## Roadmap
 
-1. **Hybrid retrieval.** Add dense embeddings fused with BM25 via reciprocal rank fusion, then a reranker. Success = held-out recall ≥ 95% with golden recall unchanged.
-2. **Grow the eval to 150+ questions,** including multi-turn follow-ups. Sample real questions from traces once there is traffic.
-3. **PDF ingestion** of real policy forms (layout-aware parsing; page-level citations via `document` blocks).
-4. **Declarations-page awareness:** load the user's actual limits and deductibles so answers say "$6,000", not "2% of Coverage A".
-5. **Drift and quality dashboard** over the trace log (this is Project 3 of this portfolio).
+1. **Fix the g03 class of error:** require every condition attached to a benefit ("relating to a declared state of emergency") to be carried into the answer. Add golden questions that probe conditions specifically.
+2. **Shorter answers:** cap length for policyholders. Measure cost and fact coverage before and after.
+3. **Hybrid retrieval.** Add dense embeddings fused with BM25 via reciprocal rank fusion, then a reranker. Success = held-out recall ≥ 95% with golden recall unchanged.
+4. **Grow the eval to 150+ questions,** including multi-turn follow-ups. Sample real questions from traces once there is traffic.
+5. **PDF ingestion** of real policy forms (layout-aware parsing; page-level citations via `document` blocks).
+6. **Declarations-page awareness:** load the user's actual limits and deductibles so answers say "$6,000", not "2% of Coverage A".
+7. **Drift and quality dashboard** over the trace log (this is Project 3 of this portfolio).
 
 ## Deployment memo (the FDE version of this project)
 
