@@ -71,11 +71,39 @@ def test_pipeline_applies_the_guard_and_flags_it():
 
 
 def test_sibling_bullet_does_not_scope_by_design():
-    # Seen in a live run (g09): the condition sat in the previous bullet and the
-    # guard repeated it. Redundant but harmless; accepting sibling bullets would
-    # also accept the run-1 g03 failure, where a sibling stated the condition
-    # for a different benefit.
-    mold = CHUNKS["HO3 §3.4"].blocks[0]
-    segs = [seg("- Coverage: only when mold results from a covered peril.\n- Limit: "),
-            seg("$10,000 total per policy period.", [mold])]
+    # Accepting sibling bullets would also accept the run-1 g03 failure, where a
+    # sibling stated the condition for a different benefit.
+    segs = [seg("**Related help**\n- Hotel: 24 months relating to a declared state of emergency.\n- Belongings: "),
+            seg("we will offer a payment of no less than 30% of the Coverage C limit without an itemized inventory.",
+                [CONTENTS_ADVANCE])]
+    assert enforce(segs) == ["condition_added:state_of_emergency"]
+
+
+# Interventions from the first 3 live runs that were wrong or redundant.
+RENTAL = CHUNKS["PAP §5.3"].blocks[0]
+MOLD = CHUNKS["HO3 §3.4"].blocks[0]
+
+
+def test_rental_reimbursement_sentence_does_not_get_the_theft_condition():
+    segs = [seg("- If you bought it: ", []),
+            seg("If a Rental Reimbursement endorsement is shown in the Declarations, its daily and maximum "
+                "limits apply instead.", [RENTAL])]
+    assert enforce(segs) == []
+
+
+def test_mold_cap_sentence_does_not_get_the_covered_peril_condition():
+    segs = [seg("- That $10,000 is the most we will pay regardless of the number of locations or claims "
+                "during the policy period.", [MOLD])]
+    assert enforce(segs) == []
+
+
+def test_mold_benefit_sentence_still_needs_its_condition():
+    segs = [seg("- We will pay up to $10,000 in total for direct physical loss caused by fungi, mold, "
+                "wet or dry rot, or bacteria.", [MOLD])]
     assert enforce(segs) == ["condition_added:covered_peril_mold"]
+
+
+def test_a_condition_is_added_once_per_line():
+    segs = [seg("- In addition to our limit of liability, we will pay up to $20 per day", [RENTAL]),
+            seg(" and without application of a deductible, up to a maximum of $600.", [RENTAL])]
+    assert enforce(segs) == ["condition_added:total_theft"]

@@ -98,13 +98,37 @@ def _scope(full: str, start: int, end: int) -> str:
     return line
 
 
+_WORD = re.compile(r"[a-z0-9$%,]+")
+_SENTENCE = re.compile(r"(?<=[.;])\s+")
+
+
+def used_sentence(cited_text: str, answer_text: str, min_overlap: float = 0.5) -> str:
+    """The sentence of a cited block that the answer is actually using.
+
+    Citations point at whole paragraphs, but a condition often belongs to one
+    sentence: PAP §5.3's "total theft" governs the $20/day benefit, not the
+    Rental Reimbursement sentence after it. Pick the sentence whose words the
+    answer covers best. If none is a clear match (a paraphrase), fall back to the
+    whole block, which keeps the guard conservative."""
+    answer = set(_WORD.findall(answer_text.lower()))
+    best, best_score = cited_text, 0.0
+    for sentence in _SENTENCE.split(cited_text):
+        words = set(_WORD.findall(sentence.lower()))
+        if words:
+            score = len(words & answer) / len(words)
+            if score > best_score:
+                best, best_score = sentence, score
+    return best if best_score >= min_overlap else cited_text
+
+
 def enforce(segments: List[dict]) -> List[str]:
     """Mutates `segments` in place, appending qualifiers that are missing.
 
     `segments` are [{text, refs, cited}] in answer order, where `cited` holds the
     exact source text each segment's citations point at. Rules are matched
-    against that text, not the whole section, so a section with one conditional
-    bullet doesn't attach the condition to its other bullets. Returns flags
+    against the cited sentence the segment uses, not the whole section, so a
+    section with one conditional sentence doesn't attach the condition to the
+    others. Each condition is added at most once per answer line. Returns flags
     naming each condition that was added."""
     full = "".join(s["text"] for s in segments)
     offsets, pos = [], 0
@@ -113,13 +137,17 @@ def enforce(segments: List[dict]) -> List[str]:
         pos += len(s["text"])
 
     flags: List[str] = []
+    added = set()  # (line start, rule name)
     for seg, (start, end) in zip(segments, offsets):
-        needed = {r.name: r for t in seg.get("cited", []) for r in rules_for(t)}
+        needed = {r.name: r for t in seg.get("cited", []) for r in rules_for(used_sentence(t, seg["text"]))}
         if not needed:
             continue
+        line_start = full.rfind("\n", 0, start) + 1
         scope = _scope(full, start, end)
         for rule in needed.values():
-            if not rule.in_answer.search(scope):
-                seg["text"] = seg["text"].rstrip() + f" [{rule.qualifier}]"
-                flags.append(f"condition_added:{rule.name}")
+            if (line_start, rule.name) in added or rule.in_answer.search(scope):
+                continue
+            seg["text"] = seg["text"].rstrip() + f" [{rule.qualifier}]"
+            added.add((line_start, rule.name))
+            flags.append(f"condition_added:{rule.name}")
     return flags

@@ -83,21 +83,33 @@ The 8 condition probes added later missed twice on first try ("froze" vs. *freez
 
 ### End-to-end with Claude (`make eval-full`)
 
-48 questions (40 golden including 8 condition probes, plus 8 held-out) and 12 attacks against `claude-opus-5-5` at effort `medium`. Full report: [`eval/reports/full-latest.md`](eval/reports/full-latest.md).
+48 questions (40 golden including 8 condition probes, plus 8 held-out) and 12 attacks against `claude-opus-5-5` at effort `medium`, **run 3 times** to check stability. Reports: [`full-guard-run1.md`](eval/reports/full-guard-run1.md), [`run2`](eval/reports/full-guard-run2.md), [`run3`](eval/reports/full-guard-run3.md).
 
-| Metric | Value |
-|---|---|
-| Answered with citations | 47/48 (the 48th correctly said "not found") |
-| Key-fact coverage (the expected number or term appears in the answer) | **97.9%** |
-| Cited an expected section | **97.9%** |
-| Faithfulness (LLM judge, every claim backed by the retrieved sources) | **89.4%** |
-| Answers with no dropped conditions (LLM judge) | **89.4%** |
-| Red team passed | **12/12** |
-| Latency p50 / p90 / max | 7.8 s / 11.7 s / 15.9 s |
-| Cost per query | **$0.023** ($1.12 for the run) |
-| Input tokens served from prompt cache | 44% |
+| Metric | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| Answered with citations (rest correctly said "not found") | 47/48 | 48/48 | 48/48 |
+| Key-fact coverage | 97.9% | 97.9% | 97.9% |
+| Cited an expected section | 97.9% | 97.9% | 97.9% |
+| Faithfulness (LLM judge) | 87.2% | 83.3% | 85.4% |
+| Answers with no dropped conditions of any kind (LLM judge) | 93.6% | 95.8% | 91.7% |
+| Eligibility conditions missing from final answers (judge flags, checked by hand) | **0** | **0** | **0** |
+| Red team passed | **12/12** | **12/12** | **12/12** |
+| Latency p50 / p90 / max | 7.8 / 11.3 / 14.8 s | 8.0 / 11.4 / 13.7 s | 8.0 / 12.1 / 16.1 s |
+| Cost per query | $0.024 | $0.024 | $0.024 |
+| Input tokens served from prompt cache | 45% | 45% | 45% |
 
-The LLM-judge numbers move about ±5 points when the same answers are graded twice, so read small changes in them as noise.
+The deterministic metrics are identical across runs. The LLM-judge metrics move by about ±3 points, the same as grading the same answers twice, so read differences that small as noise. The one key-fact miss in every run is h02 (firearms), the known held-out retrieval miss. The model says the limit isn't in the sections it has instead of guessing.
+
+#### Run 3: a deterministic condition guard
+
+The prompt fix in Run 2 made dropped conditions less likely; it can't make them impossible. So [`app/conditions.py`](app/conditions.py) adds a guard in code: a registry of 8 conditions that decide eligibility (declared state of emergency, declared catastrophe, suspected fraud, mold from a covered peril, total theft, ride-share endorsement, frozen-pipe care, roof age). When an answer line cites policy text carrying one of them, the line, or a heading scoping it, must state the condition. If it doesn't, the pipeline appends it and records `condition_added:<rule>` in the trace.
+
+What 3 × 48 live answers showed:
+
+- **The tightened prompt held.** Across 144 answers the judge found **no** dropped eligibility condition. The remaining judge flags are secondary qualifiers ("unless otherwise noted" on the deductible, "covered" before "total loss").
+- **So every guard intervention was noise.** It stepped in on 11 answers (12 lines). 5 attached "applies only when your car has been stolen" to the Rental Reimbursement sentence, which is misleading on a crash question (c06). 5 repeated the mold condition next to the $10,000 cap sentence. 2 were redundant. The cause: citations point at whole paragraphs, and the guard matched rules against the paragraph, not the sentence the answer used.
+- **Fixed after the runs, in code and tests.** The guard now matches against the cited sentence the answer actually uses (best word overlap, falling back to the whole paragraph when the answer paraphrases). It adds each condition at most once per line. The rental, mold-cap and duplicate cases from the live runs are now regression tests, and the g03 failure is still caught. This version has **not yet been re-run live**; that's the next eval.
+- **Two red-team flags were grader bugs.** r10's check flagged *"Nothing in the documents I can see supports 36 months in every state"* for containing "36 months". It now ignores negated sentences, like the coverage-promise check, and the saved answers were re-scored. The model behaved correctly in all 3 runs.
 
 #### Run 2: the dropped-condition fix
 
@@ -136,6 +148,7 @@ Run 1 surfaced one material error (g03). The California contents advance was des
 - **BM25 first, embeddings second.** On ~80 well-titled sections, BM25 plus a domain synonym table hit 100% / 87.5% recall with zero infrastructure and zero per-query cost. Adding a vector store before measuring would have been cargo cult. The held-out miss shows where it stops working.
 - **A gate that skips the model.** Low-relevance questions return in about 1 ms for $0. That also removes a whole class of hallucinations: the model can't invent an answer from irrelevant context it never sees.
 - **The disclaimer is code, not prompt.** Regulated wording shouldn't depend on the model remembering it.
+- **Eligibility conditions are code, too.** The prompt asks the model to keep conditions next to benefits; `app/conditions.py` guarantees it for the conditions that decide eligibility. A guard that fires on correct answers is a cost, so its interventions are tracked per run and every false positive becomes a test.
 - **Prompt caching, measured.** The system prompt carries a `cache_control` breakpoint, and traces record `cache_read_input_tokens`, so the hit rate is measured, not assumed. In the eval run, 42% of input tokens came from cache. Output length and the relevance gate (which skips the model entirely) move cost more.
 - **Refusal fallback.** Requests use `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`). If a safety classifier declines, the API retries on a fallback model within the same call, and a `refusal` stop reason is still handled explicitly.
 
@@ -145,7 +158,7 @@ Run 1 surfaced one material error (g03). The California contents advance was des
 make setup                 # venv + dependencies (Python 3.9+)
 cp .env.example .env       # add ANTHROPIC_API_KEY, or leave empty for offline mode
 make run                   # http://localhost:8765
-make test                  # 34 tests, no network
+make test                  # 46 tests, no network
 make eval                  # retrieval + red team, free
 make eval-full             # end-to-end with Claude + LLM judge (about $1.50)
 ```
@@ -156,7 +169,7 @@ API: `POST /api/ask {question, role, state, history}` → `{status, answer, segm
 
 ## Roadmap
 
-1. **Deterministic condition guard:** a registry of eligibility-deciding phrases ("relating to a declared state of emergency", "unless the claim involves suspected fraud"). Any answer sentence that cites a chunk containing one must carry it, or the pipeline annotates it. Success = 0 dropped eligibility triggers across 3 repeated eval runs.
+1. **Re-run the sentence-level condition guard live.** Success = 0 dropped eligibility conditions and 0 misleading interventions across 3 runs.
 2. **Shorter answers:** cap length for policyholders. Measure cost and fact coverage before and after.
 3. **Hybrid retrieval.** Add dense embeddings fused with BM25 via reciprocal rank fusion, then a reranker. Success = held-out recall ≥ 95% with golden recall unchanged.
 4. **Grow the eval to 150+ questions,** including multi-turn follow-ups. Sample real questions from traces once there is traffic.
