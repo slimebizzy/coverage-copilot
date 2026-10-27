@@ -83,22 +83,23 @@ The 8 condition probes added later missed twice on first try ("froze" vs. *freez
 
 ### End-to-end with Claude (`make eval-full`)
 
-48 questions (40 golden including 8 condition probes, plus 8 held-out) and 12 attacks against `claude-opus-5-5` at effort `medium`, **run 3 times** to check stability. Reports: [`full-guard-run1.md`](eval/reports/full-guard-run1.md), [`run2`](eval/reports/full-guard-run2.md), [`run3`](eval/reports/full-guard-run3.md).
+48 questions (40 golden including 8 condition probes, plus 8 held-out) and 12 attacks against `claude-opus-5-5` at effort `medium`, **run 3 times** to check stability, then once more after fixing the guard (run 4). Reports: [`run1`](eval/reports/full-guard-run1.md), [`run2`](eval/reports/full-guard-run2.md), [`run3`](eval/reports/full-guard-run3.md), [`run4`](eval/reports/full-guard-v2-run1.md).
 
-| Metric | Run 1 | Run 2 | Run 3 |
-|---|---|---|---|
-| Answered with citations (rest correctly said "not found") | 47/48 | 48/48 | 48/48 |
-| Key-fact coverage | 97.9% | 97.9% | 97.9% |
-| Cited an expected section | 97.9% | 97.9% | 97.9% |
-| Faithfulness (LLM judge) | 87.2% | 83.3% | 85.4% |
-| Answers with no dropped conditions of any kind (LLM judge) | 93.6% | 95.8% | 91.7% |
-| Eligibility conditions missing from final answers (judge flags, checked by hand) | **0** | **0** | **0** |
-| Red team passed | **12/12** | **12/12** | **12/12** |
-| Latency p50 / p90 / max | 7.8 / 11.3 / 14.8 s | 8.0 / 11.4 / 13.7 s | 8.0 / 12.1 / 16.1 s |
-| Cost per query | $0.024 | $0.024 | $0.024 |
-| Input tokens served from prompt cache | 45% | 45% | 45% |
+| Metric | Run 1 | Run 2 | Run 3 | Run 4 (sentence-level guard) |
+|---|---|---|---|---|
+| Answered with citations (rest correctly said "not found") | 47/48 | 48/48 | 48/48 | 47/48 |
+| Key-fact coverage | 97.9% | 97.9% | 97.9% | 97.9% |
+| Cited an expected section | 97.9% | 97.9% | 97.9% | 97.9% |
+| Faithfulness (LLM judge) | 87.2% | 83.3% | 85.4% | 87.2% |
+| Answers with no dropped conditions of any kind (LLM judge) | 93.6% | 95.8% | 91.7% | 89.4% |
+| Eligibility conditions missing from final answers (judge flags, checked by hand) | **0** | **0** | **0** | **0** |
+| Guard interventions (all false positives in runs 1–3) | 5 | 2 | 4 | **0** |
+| Red team passed | **12/12** | **12/12** | **12/12** | **12/12** |
+| Latency p50 / p90 / max | 7.8 / 11.3 / 14.8 s | 8.0 / 11.4 / 13.7 s | 8.0 / 12.1 / 16.1 s | 7.6 / 11.8 / 14.1 s |
+| Cost per query | $0.024 | $0.024 | $0.024 | $0.024 |
+| Input tokens served from prompt cache | 45% | 45% | 45% | 44% |
 
-The deterministic metrics are identical across runs. The LLM-judge metrics move by about ±3 points, the same as grading the same answers twice, so read differences that small as noise. The one key-fact miss in every run is h02 (firearms), the known held-out retrieval miss. The model says the limit isn't in the sections it has instead of guessing.
+The deterministic metrics are identical across runs. The LLM-judge metrics move by about ±3–4 points, the same as grading the same answers twice, so read differences that small as noise. The one key-fact miss in every run is h02 (firearms), the known held-out retrieval miss. The model says the limit isn't in the sections it has instead of guessing.
 
 #### Run 3: a deterministic condition guard
 
@@ -108,7 +109,9 @@ What 3 × 48 live answers showed:
 
 - **The tightened prompt held.** Across 144 answers the judge found **no** dropped eligibility condition. The remaining judge flags are secondary qualifiers ("unless otherwise noted" on the deductible, "covered" before "total loss").
 - **So every guard intervention was noise.** It stepped in on 11 answers (12 lines). 5 attached "applies only when your car has been stolen" to the Rental Reimbursement sentence, which is misleading on a crash question (c06). 5 repeated the mold condition next to the $10,000 cap sentence. 2 were redundant. The cause: citations point at whole paragraphs, and the guard matched rules against the paragraph, not the sentence the answer used.
-- **Fixed after the runs, in code and tests.** The guard now matches against the cited sentence the answer actually uses (best word overlap, falling back to the whole paragraph when the answer paraphrases). It adds each condition at most once per line. The rental, mold-cap and duplicate cases from the live runs are now regression tests, and the g03 failure is still caught. This version has **not yet been re-run live**; that's the next eval.
+- **Fixed after the runs, in code and tests.** The guard now matches against the cited sentence the answer actually uses (best word overlap, falling back to the whole paragraph when the answer paraphrases). It adds each condition at most once per line. The rental, mold-cap and duplicate cases from the live runs are now regression tests, and the g03 failure is still caught.
+- **Run 4 confirmed the fix live:** 0 interventions, down from 2–5 per run, with no eligibility condition dropped and every other metric unchanged. The flip side: a run with no drops can't show a live *catch*. That's covered by the replayed g03 failure in [`tests/test_conditions.py`](tests/test_conditions.py), not by a live run.
+- **A limit the guard can't see (h07, run 4).** Asked about Texas hail, the answer explained the base form's 180-day window to claim replacement cost. It cited HO-3 §6.3, but didn't mention that the Texas endorsement settles roofs over 15 years old at actual cash value. The guard only checks conditions inside the text an answer cites; a condition that lives in a *different* section that modifies it is out of its reach. That's the next roadmap item.
 - **Two red-team flags were grader bugs.** r10's check flagged *"Nothing in the documents I can see supports 36 months in every state"* for containing "36 months". It now ignores negated sentences, like the coverage-promise check, and the saved answers were re-scored. The model behaved correctly in all 3 runs.
 
 #### Run 2: the dropped-condition fix
@@ -169,7 +172,7 @@ API: `POST /api/ask {question, role, state, history}` → `{status, answer, segm
 
 ## Roadmap
 
-1. **Re-run the sentence-level condition guard live.** Success = 0 dropped eligibility conditions and 0 misleading interventions across 3 runs.
+1. **Cross-section conditions (h07).** When an answer cites a base-form section that a retrieved state endorsement amends, require the endorsement's change to appear in the answer, using the same endorsement links retrieval already builds. Add golden questions for it.
 2. **Shorter answers:** cap length for policyholders. Measure cost and fact coverage before and after.
 3. **Hybrid retrieval.** Add dense embeddings fused with BM25 via reciprocal rank fusion, then a reranker. Success = held-out recall ≥ 95% with golden recall unchanged.
 4. **Grow the eval to 150+ questions,** including multi-turn follow-ups. Sample real questions from traces once there is traffic.

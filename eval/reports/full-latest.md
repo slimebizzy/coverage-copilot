@@ -1,39 +1,35 @@
 # Eval report (full)
 
-Generated 2026-10-26 20:03.
+Generated 2026-10-26 20:21.
 
 Model: `anthropic:claude-opus-5-5`
 
 | Metric | Value |
 |---|---|
 | Golden questions | 48 |
-| Answered | 100.0% |
+| Answered | 97.9% |
 | Key-fact coverage | 97.9% |
 | Cited an expected section | 97.9% |
-| Faithfulness (LLM judge) | 85.4% |
-| Answers with no dropped conditions (LLM judge) | 91.7% |
-| Answers where the condition guard added an eligibility condition | 4 |
-| Latency p50 / p95 | 7973 ms / 12322 ms |
+| Faithfulness (LLM judge) | 87.2% |
+| Answers with no dropped conditions (LLM judge) | 89.4% |
+| Answers where the condition guard added an eligibility condition | 0 |
+| Latency p50 / p95 | 7604 ms / 11922 ms |
 | Cost per query | $0.0238 |
 | Red team passed | 12/12 |
 
 ## Failures
 
-- `h02` status=answered facts=0% cited=['HO3 §2.3']
-- `g09` guard added: covered_peril_mold
-- `g21` guard added: total_theft
-- `c03` guard added: covered_peril_mold
-- `c06` guard added: total_theft
-- `g16` dropped condition: "We will pay only that part of the total of all loss payable that exceeds the deductible amount shown in the Declarations" — omits that a separate windstorm or hail deductible may apply if shown by endorsement, and the 'unless otherwise noted in this policy' qualifier
-- `g30` dropped condition: "full repair or replacement cost is paid only if... 80% or more" — omits that payment is up to the limit of liability and no more than actual cash value until actual repair or replacement is complete
-- `c05` dropped condition: "replacement cost applies only if the roof surfacing is 15 years old or less": omits that the age rule applies only to loss to roof surfacing caused by windstorm or hail.
-- `h01` dropped condition: "Your payment is reduced by your deductible. The policy pays only that part of the total of all loss payable that exceeds the deductible amount shown in the Declarations." leaves out the source's qualifier that this deductible provision applies "unless otherwise noted in this policy".
-- `g06` unsupported: Actual cash value generally accounts for the roof's age and wear, so a roof over 15 years old would typically receive less.
-- `g13` unsupported: The answer says the policy covers "sudden physical damage to your home and other structures." Source [1] says "direct physical loss" and says nothing about it having to be sudden.
-- `g14` unsupported: No state endorsement applies here, so this is the base policy language. The sources are marked jurisdiction ALL, but nothing in them says that no state endorsement applies to this claim.
-- `g32` unsupported: No state-specific guideline applies since no location was given. The sources show only that UWG §1.3 is jurisdiction ALL. They say nothing about whether any state-specific guidelines exist or apply.
-- `c01` unsupported: Your Coverage C limit is on your Declarations page (no source mentions the Declarations page).
-- `c01` unsupported: For anything you claim beyond the advance, the standard inventory requirement still applies (the sources do not say how the advance interacts with the inventory duty for amounts beyond it).
-- `c05` unsupported: Actual cash value generally means depreciation is taken into account. (The sources do not define actual cash value.)
-- `h02` unsupported: Many homeowners policies set a separate, smaller limit for theft of firearms.
-- `h02` unsupported: Coverage A is the coverage on your home itself.
+- `h02` status=not_found facts=0% cited=[]
+- `g04` dropped condition: "Cosmetic roof damage is not covered." — omits that the exclusion applies only to cosmetic damage to roof surfacing caused by hail (heading states it broadly for any cosmetic roof damage)
+- `g05` dropped condition: "Your deductible would be $6,000 for a loss caused by windstorm or hail" leaves out the conditions in that sentence that the Coverage A limit is $300,000 and that the Declarations show a 2% windstorm or hail deductible. They appear only in the next sentence.
+- `g16` dropped condition: "we will pay only that part of the total of all loss payable that exceeds the deductible amount shown in the Declarations" omits the source's qualifier "Unless otherwise noted in this policy"
+- `c08` dropped condition: "The exception is a declared catastrophe where the claim involves no suspected fraud." — omits that the raised authority applies only to windstorm and hail claims
+- `h07` dropped condition: "You may make a claim on an actual cash value basis and then make a claim for any additional replacement cost within 180 days after the loss" omits the Texas endorsement §2.2 exception: hail or windstorm loss to roof surfacing more than 15 years old is settled at actual cash value, not replacement cost.
+- `g02` unsupported: Your Coverage A (dwelling) limit is shown on your Declarations page.
+- `g07` unsupported: Whether you have the water backup endorsement, and its limit, would be shown on your policy's Declarations page (the sources do not mention the Declarations page).
+- `g11` unsupported: The answer says the 10%/$1,000 limit applies to cash kept at 'another residence you own.' The source says 'an insured's residence other than the residence premises' and does not require ownership.
+- `g23` unsupported: Physical Damage coverage pays for damage to your own car. (The sources do not define Physical Damage coverage.)
+- `g23` unsupported: The 14 days count from the date you became the owner, not from when you picked up the car or registered it. (The sources do not address pickup or registration dates.)
+- `g23` unsupported: For an additional car, coverage starts on the date you become the owner, but only if you contact us within that 14-day window. (The source does not make the start of coverage conditional on contacting the insurer within 14 days.)
+- `c05` unsupported: Actual cash value takes depreciation (wear and age) into account, so the payment would typically be less than the cost of a new roof. The sources do not define actual cash value or describe how it is calculated.
+- `h08` unsupported: No state endorsement applies here, so the base HO-3 20-day window governs. The sources do not address state endorsements or whether any apply.
