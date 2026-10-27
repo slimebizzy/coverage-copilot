@@ -68,6 +68,15 @@ class SourceRef:
     title: str
     doc_version: str
     cited_text: str
+    # Enough of the section for the UI to show it in full with the cited text highlighted.
+    doc_title: str = ""
+    section: str = ""
+    heading: str = ""
+    jurisdiction: str = "ALL"
+    internal: bool = False
+    amends: List[str] = field(default_factory=list)
+    blocks: List[str] = field(default_factory=list)
+    cited_texts: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -179,7 +188,14 @@ class Pipeline:
                 if c.source not in numbering:
                     numbering[c.source] = len(numbering) + 1
                     chunk = allowed[c.source]
-                    ans.sources.append(SourceRef(numbering[c.source], c.source, chunk.title, chunk.version, c.cited_text))
+                    ans.sources.append(SourceRef(
+                        numbering[c.source], c.source, chunk.title, chunk.version, c.cited_text,
+                        doc_title=chunk.doc_title, section=chunk.section, heading=chunk.heading,
+                        jurisdiction=chunk.jurisdiction, internal=chunk.is_internal,
+                        amends=list(chunk.amends), blocks=list(chunk.blocks)))
+                ref = ans.sources[numbering[c.source] - 1]
+                if c.cited_text not in ref.cited_texts:
+                    ref.cited_texts.append(c.cited_text)
                 refs.append(numbering[c.source])
                 cited.append(c.cited_text)
             text, pii = scrub_output(part.text)
@@ -193,7 +209,9 @@ class Pipeline:
         for seg in segments:
             seg.pop("cited", None)
         ans.segments = segments
-        answer_text = "".join(s["text"] for s in segments).strip()
+        answer_text = "".join(
+            s["text"].rstrip() + "".join(f" [{q}]" for q in s.get("conditions", [])) if s.get("conditions") else s["text"]
+            for s in segments).strip()
         if role == "policyholder":
             ans.segments.append({"text": "\n\n" + POLICYHOLDER_NOTE, "refs": [], "note": True})
         return self._finish(ans, "answered", answer_text, t0, timings, question, role, state)

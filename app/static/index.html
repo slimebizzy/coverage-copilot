@@ -2,145 +2,703 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Coverage Copilot</title>
+<meta name="description" content="Ask what your insurance policy actually says. Every answer cites the section it comes from.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:ital,wght@0,400..700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #f6f7f9; --panel: #ffffff; --ink: #14181f; --muted: #5d6675; --line: #e2e5ea;
-    --accent: #1f5fbf; --accent-ink: #ffffff; --chip: #e8effa; --chip-ink: #1f4f99;
-    --warn: #8a5a00; --warn-bg: #fff4dc; --user: #1f5fbf;
+:root {
+  --bg: #eef0ec; --surface: #f8f9f6; --raised: #ffffff; --ink: #1b1f27; --soft: #5d646c; --faint: #8b9198;
+  --line: #d7dbd3; --line-strong: #c3c9bf; --sage: #dfe6d6; --pine: #2e4239; --pine-ink: #f4f6f1;
+  --ochre: #a87418; --mark: rgba(214, 160, 52, .28); --mark-strong: rgba(214, 160, 52, .5);
+  --chip: #efe4cc; --chip-ink: #6b4a0e;
+  --cond: #e6ecf6; --cond-ink: #2c4a7a; --cond-line: #c3d1e8;
+  --warn: #f5ead6; --warn-ink: #7a4e09; --stop: #f4e1dd; --stop-ink: #8a3324; --info: #e4ebe2; --info-ink: #2e4239;
+  --shadow: 0 1px 2px rgba(27, 31, 39, .05), 0 8px 24px rgba(27, 31, 39, .07);
+  --serif: "Young Serif", "Iowan Old Style", Georgia, serif;
+  --sans: "Figtree", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --ease: cubic-bezier(.22, .8, .24, 1);
+  --panel-w: 440px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171b28; --surface: #1e2334; --raised: #252b40; --ink: #f1efe8; --soft: #b7b9cc; --faint: #8a8da6;
+    --line: #313852; --line-strong: #414a6a; --sage: #263330; --pine: #9fc1ad; --pine-ink: #13261d;
+    --ochre: #f5c877; --mark: rgba(245, 200, 119, .2); --mark-strong: rgba(245, 200, 119, .38);
+    --chip: #3a3322; --chip-ink: #f5d592;
+    --cond: #222f48; --cond-ink: #b9cdf1; --cond-line: #34466b;
+    --warn: #3a3020; --warn-ink: #f2cf8c; --stop: #3d2626; --stop-ink: #f0b3a6; --info: #23302c; --info-ink: #b5d3c3;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 10px 30px rgba(0, 0, 0, .3);
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0f1216; --panel: #171b21; --ink: #e8ebf0; --muted: #98a1b0; --line: #2a3039;
-      --accent: #5b9bff; --accent-ink: #0b1220; --chip: #1d2a3e; --chip-ink: #a9c8ff;
-      --warn: #ffd27a; --warn-bg: #2e2612; --user: #2a62b8;
-    }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
-  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
-  h1 { font-size: 17px; margin: 0; letter-spacing: -0.01em; }
-  h1 small { color: var(--muted); font-weight: 400; margin-left: 6px; }
-  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
-  label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
-  select { font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
-  main { max-width: 860px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; min-height: calc(100vh - 62px); }
-  #banner { display: none; background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 12px; }
-  #log { flex: 1; display: flex; flex-direction: column; gap: 14px; padding-bottom: 16px; }
-  .msg { max-width: 100%; padding: 12px 14px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .user { align-self: flex-end; background: var(--user); color: #fff; max-width: 80%; }
-  .bot { align-self: stretch; background: var(--panel); border: 1px solid var(--line); }
-  .bot .status { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  .ref { display: inline-block; font-size: 11px; font-weight: 600; background: var(--chip); color: var(--chip-ink); border-radius: 6px; padding: 0 6px; margin: 0 2px; cursor: pointer; vertical-align: 2px; border: 0; }
-  .note { color: var(--muted); font-size: 13px; }
-  details { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 13px; }
-  summary { cursor: pointer; color: var(--muted); }
-  .src { margin: 8px 0; padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--bg); border-radius: 0 8px 8px 0; white-space: normal; }
-  .src b { display: block; font-size: 12px; }
-  .src.flash { outline: 2px solid var(--accent); }
-  .meta { font-size: 12px; color: var(--muted); margin-top: 8px; }
-  form { display: flex; gap: 8px; position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 16px; }
-  textarea { flex: 1; font: inherit; resize: none; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); min-height: 46px; }
-  button.send { font: inherit; font-weight: 600; padding: 0 18px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
-  button.send:disabled { opacity: .5; cursor: default; }
-  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
-  .examples button { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+}
+:root[data-theme="dark"] {
+  --bg: #171b28; --surface: #1e2334; --raised: #252b40; --ink: #f1efe8; --soft: #b7b9cc; --faint: #8a8da6;
+  --line: #313852; --line-strong: #414a6a; --sage: #263330; --pine: #9fc1ad; --pine-ink: #13261d;
+  --ochre: #f5c877; --mark: rgba(245, 200, 119, .2); --mark-strong: rgba(245, 200, 119, .38);
+  --chip: #3a3322; --chip-ink: #f5d592;
+  --cond: #222f48; --cond-ink: #b9cdf1; --cond-line: #34466b;
+  --warn: #3a3020; --warn-ink: #f2cf8c; --stop: #3d2626; --stop-ink: #f0b3a6; --info: #23302c; --info-ink: #b5d3c3;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 10px 30px rgba(0, 0, 0, .3);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+button, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ochre); outline-offset: 2px; border-radius: 6px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.mono { font-family: var(--mono); font-size: 12px; letter-spacing: .01em; }
+svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- top bar ---------- */
+.bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 16px; padding: 12px 20px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; margin-right: auto; }
+.brand b { font: 20px/1 var(--serif); font-weight: 400; letter-spacing: -.01em; white-space: nowrap; }
+.brand .mono { color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.context { display: flex; align-items: center; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.context label, .scope-btn { white-space: nowrap; }
+.context label { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border-radius: 999px; color: var(--soft); font-size: 13px; }
+.context select { appearance: none; border: 0; background: transparent; font-weight: 600; color: var(--ink); padding: 2px 18px 2px 2px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 9px) 55%, calc(100% - 5px) 55%; background-size: 4px 4px; background-repeat: no-repeat; }
+.scope-btn { display: flex; align-items: center; gap: 6px; border: 0; background: var(--sage); color: var(--pine); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.icon-btn { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; cursor: pointer; color: var(--soft); }
+.icon-btn:hover { color: var(--ink); border-color: var(--line-strong); }
+
+.popover { position: absolute; z-index: 40; width: min(360px, calc(100vw - 32px)); background: var(--raised); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: var(--shadow); padding: 14px; font-size: 14px; }
+.popover[hidden] { display: none; }
+.popover h3 { margin: 0 0 8px; font: 600 13px/1.3 var(--sans); color: var(--soft); text-transform: uppercase; letter-spacing: .06em; }
+.doc-row { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.doc-row:first-of-type { border-top: 0; }
+.doc-row .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; background: var(--pine); flex: none; }
+.doc-row.off { color: var(--faint); }
+.doc-row.off .dot { background: transparent; border: 1.5px solid var(--faint); }
+.doc-row small { display: block; color: var(--faint); font-family: var(--mono); font-size: 11px; }
+
+/* ---------- layout ---------- */
+.shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: calc(100vh - 59px); transition: grid-template-columns .35s var(--ease); }
+.shell.open { grid-template-columns: minmax(0, 1fr) var(--panel-w); }
+.thread-wrap { display: flex; flex-direction: column; min-width: 0; }
+.thread { width: 100%; max-width: 760px; margin: 0 auto; padding: 28px 20px 24px; flex: 1; display: flex; flex-direction: column; gap: 28px; }
+
+/* ---------- empty state ---------- */
+.hero { margin: 6vh 0 0; }
+.hero .eyebrow { color: var(--ochre); }
+.hero h1 { font: clamp(34px, 5vw, 50px)/1.08 var(--serif); font-weight: 400; letter-spacing: -.02em; margin: 10px 0 14px; max-width: 14ch; }
+.hero p { color: var(--soft); max-width: 52ch; margin: 0; font-size: 17px; }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 26px 0 30px; padding: 0; list-style: none; }
+.steps li { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 14px; color: var(--soft); }
+.steps li b { display: block; color: var(--ink); font-weight: 600; margin-bottom: 2px; }
+.steps .mono { color: var(--ochre); }
+.examples-title { font-size: 13px; color: var(--faint); margin: 0 0 10px; }
+.examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ex { text-align: left; border: 1px solid var(--line); background: var(--raised); border-radius: 12px; padding: 13px 14px; cursor: pointer; font-size: 15px; line-height: 1.4;
+  transition: transform .2s var(--ease), border-color .2s, box-shadow .2s; display: flex; gap: 10px; align-items: flex-start; }
+.ex:hover { transform: translateY(-2px); border-color: var(--line-strong); box-shadow: var(--shadow); }
+.ex .tag { margin-left: auto; color: var(--faint); white-space: nowrap; }
+
+/* ---------- messages ---------- */
+.q { align-self: flex-end; max-width: 82%; background: var(--sage); color: var(--ink); padding: 10px 15px; border-radius: 16px 16px 4px 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.divider { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 12px; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.a { position: relative; animation: rise .4s var(--ease) both; }
+/* Position only: if animations are paused (background tab), the content must still be visible. */
+@keyframes rise { from { transform: translateY(6px); } to { transform: none; } }
+.a-head { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 12px; margin-bottom: 8px; }
+.a-head .mark { width: 18px; height: 18px; border-radius: 5px; background: var(--pine); display: grid; place-items: center; color: var(--pine-ink); font: 11px/1 var(--serif); }
+.body { font-size: 16.5px; line-height: 1.65; overflow-wrap: anywhere; }
+.body p { margin: 0 0 12px; }
+.body p.lead { font-size: 18px; line-height: 1.55; }
+.body h4 { margin: 18px 0 6px; font: 600 14px/1.4 var(--sans); letter-spacing: .01em; }
+.body ul { margin: 0 0 12px; padding-left: 20px; }
+.body li { margin: 4px 0; }
+.body li::marker { color: var(--faint); }
+.body strong { font-weight: 650; }
+
+.ref { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; margin: 0 1px 0 3px; vertical-align: 2px;
+  border: 0; border-radius: 6px; background: var(--chip); color: var(--chip-ink); font: 500 11px/1 var(--mono); cursor: pointer; transition: background .15s, transform .15s; }
+.ref:hover, .ref[aria-expanded="true"] { background: var(--mark-strong); transform: translateY(-1px); }
+.cond { display: inline-flex; align-items: flex-start; gap: 6px; margin: 4px 0 2px 4px; padding: 3px 9px 3px 7px; border: 1px solid var(--cond-line); border-radius: 8px;
+  background: var(--cond); color: var(--cond-ink); font-size: 13.5px; line-height: 1.4; vertical-align: 1px; cursor: help; }
+.cond svg { margin-top: 2px; }
+
+.note { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); color: var(--soft); font-size: 13.5px; }
+.sources { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.src-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; transition: border-color .15s, background .15s; }
+.src-row:hover, .src-row.active { border-color: var(--ochre); }
+.src-row .n { font: 500 11px/20px var(--mono); text-align: center; height: 20px; border-radius: 6px; background: var(--chip); color: var(--chip-ink); }
+.src-row .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.src-row .t span { color: var(--faint); }
+.badges { display: flex; gap: 6px; }
+.badge { font: 500 10.5px/1 var(--mono); padding: 4px 6px; border-radius: 5px; background: var(--bg); color: var(--soft); border: 1px solid var(--line); white-space: nowrap; }
+.badge.state { background: var(--info); color: var(--info-ink); border-color: transparent; }
+.badge.internal { background: var(--warn); color: var(--warn-ink); border-color: transparent; }
+
+.foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; color: var(--faint); }
+.foot .meta { margin-right: auto; }
+.fb { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+.fb button { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid transparent; background: transparent; border-radius: 8px; cursor: pointer; color: var(--faint); }
+.fb button:hover { color: var(--ink); border-color: var(--line); }
+.fb button[aria-pressed="true"] { color: var(--pine); background: var(--sage); }
+.fb-note { display: flex; gap: 8px; width: 100%; }
+.fb-note input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 8px; padding: 7px 10px; font-size: 14px; }
+.fb-note button { border: 0; background: var(--pine); color: var(--pine-ink); border-radius: 8px; padding: 0 12px; font-weight: 600; font-size: 13px; cursor: pointer; }
+
+/* non-answer states */
+.state-card { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 14px 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.state-card .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; }
+.state-card h3 { margin: 4px 0 4px; font: 600 16px/1.3 var(--sans); }
+.state-card p { margin: 0 0 6px; color: var(--soft); }
+.state-card .why { color: var(--faint); }
+.tone-info .ic { background: var(--info); color: var(--info-ink); }
+.tone-warn .ic { background: var(--warn); color: var(--warn-ink); }
+.tone-stop .ic { background: var(--stop); color: var(--stop-ink); }
+
+/* loading */
+.thinking { display: flex; align-items: center; gap: 10px; color: var(--soft); font-size: 14px; }
+.pulse { display: flex; gap: 4px; }
+.pulse i { width: 6px; height: 6px; border-radius: 50%; background: var(--ochre); animation: blink 1.2s infinite ease-in-out; }
+.pulse i:nth-child(2) { animation-delay: .15s; } .pulse i:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; transform: scale(.85); } 40% { opacity: 1; transform: none; } }
+.skeleton { margin-top: 12px; display: grid; gap: 8px; }
+.skeleton span { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--line) 0%, var(--surface) 50%, var(--line) 100%); background-size: 200% 100%; animation: shimmer 1.4s infinite linear; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ---------- composer ---------- */
+.composer { position: sticky; bottom: 0; padding: 12px 20px calc(16px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); }
+.composer form { max-width: 760px; margin: 0 auto; display: flex; align-items: flex-end; gap: 8px; padding: 8px 8px 8px 16px; background: var(--raised);
+  border: 1px solid var(--line-strong); border-radius: 18px; box-shadow: var(--shadow); }
+.composer textarea { flex: 1; border: 0; background: transparent; resize: none; outline: none; padding: 8px 0; max-height: 160px; line-height: 1.45; }
+.composer textarea::placeholder { color: var(--faint); }
+.send { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 12px; background: var(--pine); color: var(--pine-ink); cursor: pointer; transition: opacity .15s, transform .15s; }
+.send:disabled { opacity: .35; cursor: default; }
+.send:not(:disabled):hover { transform: translateY(-1px); }
+.hint { max-width: 760px; margin: 8px auto 0; text-align: center; color: var(--faint); font-size: 12px; }
+.offline { max-width: 760px; margin: 0 auto 8px; display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 10px; background: var(--warn); color: var(--warn-ink); font-size: 13px; }
+.offline[hidden] { display: none; }
+
+/* ---------- source panel ---------- */
+.panel { position: sticky; top: 59px; height: calc(100vh - 59px); border-left: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; min-width: 0; }
+.panel[hidden] { display: none; }
+.panel-head { display: flex; align-items: flex-start; gap: 10px; padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+.panel-head .doc { color: var(--faint); font-size: 12.5px; margin-bottom: 4px; }
+.panel-head h2 { margin: 0; font: 22px/1.25 var(--serif); font-weight: 400; letter-spacing: -.01em; }
+.panel-head .badges { margin-top: 10px; flex-wrap: wrap; }
+.panel-head .icon-btn { margin-left: auto; flex: none; }
+.panel-body { overflow-y: auto; padding: 18px 20px 28px; flex: 1; }
+.policy { font: 15.5px/1.7 var(--serif); }
+.policy p { margin: 0 0 12px; padding: 2px 6px; margin-left: -6px; border-radius: 6px; transition: background .4s; }
+.policy p.bullet { padding-left: 22px; position: relative; }
+.policy p.bullet::before { content: "–"; position: absolute; left: 8px; color: var(--faint); }
+.policy mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 1px 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.policy p.flash mark { background: var(--mark-strong); }
+.policy p.cited { background: var(--mark); box-shadow: inset 3px 0 0 var(--ochre); padding-left: 12px; }
+.policy p.cited.flash { background: var(--mark-strong); }
+.amends { margin: 18px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--info); color: var(--info-ink); font-size: 14px; }
+.amends button { margin-top: 8px; border: 1px solid currentColor; background: transparent; color: inherit; border-radius: 8px; padding: 5px 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.compare { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.compare .label { color: var(--faint); margin-bottom: 8px; display: block; }
+.compare .policy { color: var(--soft); }
+.panel-foot { padding: 12px 20px; border-top: 1px solid var(--line); color: var(--faint); font-size: 12px; }
+.scrim { display: none; }
+
+/* hover preview */
+.preview { position: fixed; z-index: 50; width: min(340px, calc(100vw - 24px)); padding: 12px 14px; background: var(--raised); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow); font-size: 13px; pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .15s, transform .15s var(--ease); }
+.preview.show { opacity: 1; transform: none; }
+.preview .mono { color: var(--faint); display: block; margin-bottom: 6px; }
+.preview q { display: block; font: 14px/1.55 var(--serif); quotes: none; }
+.preview small { display: block; margin-top: 8px; color: var(--faint); }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1080px) {
+  .shell.open { grid-template-columns: minmax(0, 1fr); }
+  .panel { position: fixed; inset: auto 0 0 0; top: auto; height: min(78vh, 680px); z-index: 60; border-left: 0; border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px rgba(0, 0, 0, .18); animation: sheet .35s var(--ease); }
+  @keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
+  .scrim { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(15, 18, 26, .35); }
+  .scrim[hidden] { display: none; }
+}
+@media (max-width: 920px) {
+  .bar { flex-wrap: wrap; gap: 10px; }
+  .brand .mono { display: none; }
+  .context { order: 3; width: 100%; justify-content: space-between; }
+  .shell { min-height: calc(100vh - 104px); }
+}
+@media (max-width: 720px) {
+  .bar { padding: 10px 16px; }
+  .context { gap: 2px; padding: 3px; }
+  .context label { padding: 3px 0 3px 8px; font-size: 13px; }
+  .context label .lbl { display: none; }
+  .scope-btn { padding: 6px 10px; font-size: 12.5px; }
+  .hero { margin-top: 2vh; }
+  .steps { gap: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); margin: 20px 0 24px; }
+  .steps li { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; display: flex; gap: 10px; align-items: baseline; }
+  .steps li:first-child { border-top: 0; }
+  .steps li .d { display: none; }
+  .thread { padding: 20px 16px; }
+  .steps, .examples { grid-template-columns: minmax(0, 1fr); }
+  .steps li { padding: 10px 12px; }
+  .q { max-width: 92%; }
+  .src-row { grid-template-columns: 24px minmax(0, 1fr); }
+  .src-row .badges { grid-column: 2; }
+  .composer { padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
 </style>
 </head>
 <body>
-<header>
-  <h1>Coverage Copilot <small>Cobalt Harbor Mutual (fictional)</small></h1>
-  <div class="controls">
-    <label>I am a <select id="role"></select></label>
-    <label>State <select id="state"></select></label>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-docs" viewBox="0 0 24 24"><path d="M8 3h7l5 5v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v6h6M9 13h7M9 17h5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 8.5l7 7"/></symbol>
+  <symbol id="i-quote" viewBox="0 0 24 24"><path d="M5 17V9a3 3 0 0 1 3-3M14 17V9a3 3 0 0 1 3-3"/><path d="M5 13h4v4H5zM14 13h4v4h-4z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 5h6a2 2 0 0 1 2 2l-2 7a2 2 0 0 1-2 1H7"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M7 13V4H4v9zM7 13l4 8a2 2 0 0 0 3-2l-1-5h6a2 2 0 0 0 2-2l-2-7a2 2 0 0 0-2-1H7"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5z"/></symbol>
+</svg>
+
+<header class="bar">
+  <div class="brand"><b>Coverage Copilot</b><span class="mono">Cobalt Harbor Mutual · a fictional insurer</span></div>
+  <div class="context" role="group" aria-label="Who is asking">
+    <label><span class="lbl">Asking as</span> <select id="role" aria-label="Role"></select></label>
+    <label><span class="lbl">Property in</span> <select id="state" aria-label="State"></select></label>
+    <button class="scope-btn" id="scopeBtn" type="button" aria-expanded="false" aria-controls="scopePop">
+      <svg class="i"><use href="#i-docs"/></svg><span id="scopeCount">Documents</span>
+    </button>
   </div>
+  <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch theme"><svg class="i"><use href="#i-moon"/></svg></button>
 </header>
-<main>
-  <div id="banner">Offline demo mode: no API key is configured, so answers are quoted from the retrieved policy text without calling Claude.</div>
-  <div class="examples" id="examples"></div>
-  <div id="log"></div>
-  <form id="f">
-    <textarea id="q" rows="1" placeholder="Ask about coverage, limits, deductibles, or claims…"></textarea>
-    <button class="send" id="send">Ask</button>
-  </form>
-</main>
+<div class="popover" id="scopePop" hidden role="dialog" aria-label="Documents in scope"></div>
+
+<div class="shell" id="shell">
+  <div class="thread-wrap">
+    <main class="thread" id="thread" aria-live="polite" aria-busy="false">
+      <section class="hero" id="hero">
+        <span class="mono eyebrow">Policy Q&amp;A with receipts</span>
+        <h1>Ask what your policy actually says.</h1>
+        <p>Every answer quotes the policy section it comes from. If the answer isn't in your documents, it tells you so instead of guessing.</p>
+        <ol class="steps">
+          <li><span class="mono">01</span><b>Searches only what you can see</b><span class="d">Your role and state decide which documents count.</span></li>
+          <li><span class="mono">02</span><b>Cites every claim</b><span class="d">Tap a number to read the exact policy text.</span></li>
+          <li><span class="mono">03</span><b>Checks conditions</b><span class="d">Limits that only apply sometimes always say when.</span></li>
+        </ol>
+        <p class="examples-title">Try one of these</p>
+        <div class="examples" id="examples"></div>
+      </section>
+    </main>
+    <div class="composer">
+      <div class="offline" id="offline" hidden><svg class="i"><use href="#i-info"/></svg><span>Demo mode: no API key is set, so answers quote the matching policy text without calling Claude.</span></div>
+      <form id="form">
+        <label class="sr-only" for="q">Your question</label>
+        <textarea id="q" rows="1" placeholder="Ask about coverage, limits, deductibles or claims"></textarea>
+        <button class="send" id="send" type="submit" aria-label="Ask" disabled><svg class="i"><use href="#i-send"/></svg></button>
+      </form>
+      <p class="hint">Explains policy language. It isn't a coverage decision.</p>
+    </div>
+  </div>
+  <aside class="panel" id="panel" hidden aria-label="Policy source" tabindex="-1">
+    <div class="panel-head">
+      <div><div class="doc" id="pDoc"></div><h2 id="pTitle"></h2><div class="badges" id="pBadges"></div></div>
+      <button class="icon-btn" id="pClose" type="button" aria-label="Close source"><svg class="i"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="panel-body" id="pBody"></div>
+    <div class="panel-foot mono" id="pFoot"></div>
+  </aside>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<div class="preview" id="preview" role="tooltip"></div>
+
 <script>
-const EXAMPLES = {
-  policyholder: ["How long will you pay for a hotel if a wildfire destroys my house?", "What's my deductible for hail damage?", "Am I covered if I crash while driving for Uber?", "Is mold covered?"],
-  adjuster: ["What's my reserve authority as an associate adjuster during a catastrophe?", "When do I refer a claim to SIU?", "Is continuous seepage covered, and what about the mold?"],
-  underwriter: ["Is a 22-year-old roof eligible for replacement cost?", "When do I refer a risk to a senior underwriter?"],
-};
 const $ = (id) => document.getElementById(id);
-const chatHistory = [];
-let msgCount = 0;
+const EXAMPLES = {
+  policyholder: [
+    ["A wildfire destroyed my house. How long will you pay for a hotel?", "CA"],
+    ["What's my deductible for hail damage?", "TX"],
+    ["Am I covered if I crash while driving for Uber?", null],
+    ["Is mold covered?", null],
+  ],
+  adjuster: [
+    ["Can an associate adjuster set a $40,000 reserve on a hail claim?", null],
+    ["When do I need to refer a claim to SIU?", null],
+    ["Is continuous seepage covered, and what about the mold?", null],
+    ["The insured wants appraisal. What's my deadline to respond?", null],
+  ],
+  underwriter: [
+    ["Is a 22-year-old roof eligible for replacement cost?", null],
+    ["When do I refer a risk to a senior underwriter?", null],
+    ["Can we write a house with a swimming pool?", null],
+  ],
+};
+const STATE_NAMES = { CA: "California", TX: "Texas", OTHER: "Another state" };
+const ROLE_NAMES = { policyholder: "Policyholder", adjuster: "Adjuster", underwriter: "Underwriter" };
+const STATES = {
+  not_found: { tone: "info", icon: "i-search", title: "Not in your documents",
+    why: "None of the policy sections you can see answer this, so nothing was guessed.",
+    tip: "Try the words a policy uses, like \"Additional Living Expense\" instead of \"hotel\". Your agent or adjuster can help with anything outside these documents." },
+  out_of_scope: { tone: "info", icon: "i-compass", title: "Outside what I can help with",
+    why: "This assistant only answers questions about policies, claims and coverage." },
+  blocked: { tone: "stop", icon: "i-stop", title: "I can't help with that",
+    why: "The request was stopped by an input check before any document was searched." },
+  unsupported: { tone: "warn", icon: "i-quote", title: "Held back: no citations",
+    why: "A draft answer came back without citing the policy, so it wasn't shown. An answer you can't check isn't worth giving." },
+  refused: { tone: "stop", icon: "i-stop", title: "I can't help with that",
+    why: "The model declined this request." },
+  error: { tone: "warn", icon: "i-alert", title: "Something went wrong",
+    why: "The answer couldn't be completed. Please try again in a moment." },
+};
 
-function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+let meta = null, chatHistory = [], busy = false, answerCount = 0, lastContext = null;
+const panelState = { answerId: null, n: null };
 
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid != null) e.append(kid);
+  return e;
+}
+function icon(name) {
+  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  s.setAttribute("class", "i"); s.setAttribute("aria-hidden", "true");
+  const u = document.createElementNS("http://www.w3.org/2000/svg", "use"); u.setAttribute("href", "#" + name);
+  s.append(u); return s;
+}
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ctx = () => ({ role: $("role").value, state: $("state").value });
+
+/* ---------- answer rendering ---------- */
+// Segments carry citations and added conditions. Weave them into the text as
+// private-use tokens, render a small safe markdown subset, then swap tokens for elements.
+function weave(segments) {
+  let text = "", conds = [];
+  for (const s of segments) {
+    if (s.note) continue;
+    let t = s.text;
+    // Claude often ends a cited span before its period: "access[1]." Put the
+    // punctuation before the chips so it can't wrap onto a line by itself.
+    const punct = t.match(/^[.,;:!?)]+/);
+    if (punct && /[\uE001\uE003]$/.test(text)) {
+      text = text.replace(/((?:\uE000\d+\uE001|\uE002\d+\uE003)+)$/, punct[0] + "$1");
+      t = t.slice(punct[0].length);
+    }
+    text += t;
+    for (const n of s.refs || []) text += `${n}`;
+    for (const c of s.conditions || []) { text += `${conds.length}`; conds.push(c); }
+  }
+  return { text: text.trim(), conds };
+}
+function inline(s) {
+  return esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>")
+    .replace(/(\d+)/g, '<button type="button" class="ref" data-n="$1" aria-label="Source $1">$1</button>')
+    .replace(/(\d+)/g, '<span class="cond" data-c="$1" tabindex="0"></span>');
+}
+function markdown(text) {
+  const out = []; let list = null, first = true;
+  const flush = () => { if (list) { out.push(`<ul>${list.join("")}</ul>`); list = null; } };
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) { flush(); continue; }
+    const bullet = line.match(/^(?:[-*•]|\d+\.)\s+(.*)$/);
+    if (bullet) { (list ||= []).push(`<li>${inline(bullet[1])}</li>`); continue; }
+    flush();
+    const heading = line.match(/^(?:#{1,4}\s+(.+)|\*\*([^*]+)\*\*:?)$/);
+    if (heading && !first) { out.push(`<h4>${inline(heading[1] || heading[2])}</h4>`); continue; }
+    out.push(`<p${first ? ' class="lead"' : ""}>${inline(line)}</p>`); first = false;
+  }
+  flush();
+  return out.join("");
+}
+
+function sourceLabel(s) { return `${s.doc_id || s.chunk_id.split(" ")[0]} §${s.section || s.chunk_id.split("§")[1]}`; }
+function badgesFor(s) {
+  const b = [];
+  if (s.jurisdiction && s.jurisdiction !== "ALL") b.push(el("span", { class: "badge state", text: STATE_NAMES[s.jurisdiction] || s.jurisdiction }));
+  if (s.amends && s.amends.length) b.push(el("span", { class: "badge", text: `Amends ${s.amends.map((a) => a.replace("HO3", "HO-3")).join(", ")}` }));
+  if (s.internal) b.push(el("span", { class: "badge internal", text: "Internal" }));
+  return el("div", { class: "badges" }, b);
+}
+
+function renderAnswer(a, question) {
+  const id = ++answerCount;
+  const wrap = el("article", { class: "a", "aria-label": "Answer" });
+  wrap.dataset.answer = id;
+  wrap._sources = a.sources;
+
+  if (a.status !== "answered") {
+    const st = STATES[a.status] || STATES.error;
+    wrap.append(el("div", { class: `state-card tone-${st.tone}` },
+      el("div", { class: "ic" }, icon(st.icon)),
+      el("div", {}, el("h3", { text: st.title }), el("p", { text: st.why }),
+        st.tip ? el("p", { class: "why", text: st.tip }) : null)));
+  } else {
+    wrap.append(el("div", { class: "a-head" }, el("span", { class: "mark", "aria-hidden": "true", text: "C" }),
+      el("span", { text: `Answer from ${a.sources.length} policy section${a.sources.length === 1 ? "" : "s"}` })));
+    const { text, conds } = weave(a.segments);
+    const body = el("div", { class: "body" });
+    body.innerHTML = markdown(text);
+    body.querySelectorAll(".cond").forEach((c) => {
+      c.append(icon("i-shield"), el("span", { text: conds[+c.dataset.c] }));
+      c.title = "Added by the policy check: the cited text carries this condition and the answer didn't state it.";
+    });
+    body.querySelectorAll(".ref").forEach((r) => wireRef(r, wrap));
+    wrap.append(body);
+    const note = a.segments.find((s) => s.note);
+    if (note) wrap.append(el("div", { class: "note" }, icon("i-info"), el("span", { text: note.text.trim() })));
+    wrap.append(el("div", { class: "sources", role: "list", "aria-label": "Sources" },
+      a.sources.map((s) => el("button", { class: "src-row", type: "button", role: "listitem", "data-n": s.n,
+        onclick: () => openSource(wrap, s.n) },
+        el("span", { class: "n", text: s.n }),
+        el("span", { class: "t" }, `${s.heading || s.title} `, el("span", { class: "mono", text: sourceLabel(s) })),
+        badgesFor(s)))));
+  }
+  wrap.append(footer(a));
+  return wrap;
+}
+
+function footer(a) {
+  const secs = a.latency_ms && a.latency_ms.total ? (a.latency_ms.total / 1000).toFixed(1) + " s" : "";
+  const meta = [secs, a.cost_usd ? "$" + a.cost_usd.toFixed(3) : "", "trace " + a.trace_id].filter(Boolean).join(" · ");
+  const foot = el("div", { class: "foot" }, el("span", { class: "meta mono", text: meta }));
+  if (a.status === "answered") {
+    const up = el("button", { type: "button", "aria-label": "This answer was right", "aria-pressed": "false" }, icon("i-up"));
+    const down = el("button", { type: "button", "aria-label": "This answer was wrong", "aria-pressed": "false" }, icon("i-down"));
+    const fb = el("div", { class: "fb" }, el("span", { text: "Was this right?" }), up, down);
+    const send = (rating, note = "") => fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trace_id: a.trace_id, rating, note }) }).catch(() => {});
+    up.onclick = () => { up.setAttribute("aria-pressed", "true"); down.setAttribute("aria-pressed", "false"); send("up"); foot.querySelector(".fb-note")?.remove(); };
+    down.onclick = () => {
+      down.setAttribute("aria-pressed", "true"); up.setAttribute("aria-pressed", "false"); send("down");
+      if (foot.querySelector(".fb-note")) return;
+      const input = el("input", { type: "text", placeholder: "What was wrong? (optional)", "aria-label": "What was wrong", maxlength: 1000 });
+      const form = el("form", { class: "fb-note" }, input, el("button", { type: "submit", text: "Send" }));
+      form.onsubmit = (e) => { e.preventDefault(); if (input.value.trim()) send("down", input.value.trim()); form.replaceWith(el("span", { text: "Thanks. That goes to the team reviewing answers." })); };
+      foot.append(form); input.focus();
+    };
+    foot.append(fb);
+  }
+  return foot;
+}
+
+/* ---------- citations: preview + panel ---------- */
+const preview = $("preview");
+function wireRef(btn, wrap) {
+  const n = +btn.dataset.n;
+  const s = wrap._sources.find((x) => x.n === n);
+  if (!s) return;
+  btn.setAttribute("aria-label", `Source ${n}: ${s.heading || s.title}`);
+  const show = () => {
+    preview.replaceChildren(el("span", { class: "mono", text: `${sourceLabel(s)} · ${s.heading || ""}` }),
+      el("q", { text: s.cited_text.length > 260 ? s.cited_text.slice(0, 257) + "…" : s.cited_text }),
+      el("small", { text: "Click to read the full section" }));
+    const r = btn.getBoundingClientRect();
+    const left = Math.min(Math.max(12, r.left - 20), window.innerWidth - preview.offsetWidth - 12);
+    const above = r.top > preview.offsetHeight + 24;
+    preview.style.left = left + "px";
+    preview.style.top = (above ? r.top - preview.offsetHeight - 10 : r.bottom + 10) + "px";
+    preview.classList.add("show");
+  };
+  const hide = () => preview.classList.remove("show");
+  btn.addEventListener("mouseenter", show); btn.addEventListener("focus", show);
+  btn.addEventListener("mouseleave", hide); btn.addEventListener("blur", hide);
+  btn.addEventListener("click", () => { hide(); openSource(wrap, n); });
+}
+
+const WORDS = (t) => new Set((t.toLowerCase().match(/[a-z0-9$%,]+/g) || []).filter((w) => w.length > 2));
+// Citations point at whole paragraphs. Highlight the sentences the answer
+// actually used (most of their words appear in the answer lines that cite this
+// source); if none clearly match, tint the whole cited paragraph instead.
+function policyBlocks(blocks, highlights = [], answerText = "") {
+  const box = el("div", { class: "policy" });
+  const used = WORDS(answerText);
+  for (const b of blocks) {
+    const isBullet = b.startsWith("- ");
+    const text = isBullet ? b.slice(2) : b;
+    const p = el("p", { class: isBullet ? "bullet" : null });
+    const cited = highlights.some((h) => h && (h === b || h.includes(text) || text.includes(h.replace(/^- /, ""))));
+    if (!cited) { p.textContent = text; box.append(p); continue; }
+    p.dataset.hit = "1";
+    const sentences = text.split(/(?<=[.;])\s+/);
+    const scores = sentences.map((sen) => { const w = WORDS(sen); let n = 0; w.forEach((x) => used.has(x) && n++); return w.size ? n / w.size : 0; });
+    const strong = scores.map((sc) => sc >= 0.5);
+    if (!used.size || !strong.some(Boolean)) { p.classList.add("cited"); p.textContent = text; box.append(p); continue; }
+    sentences.forEach((sen, i) => { if (i) p.append(" "); p.append(strong[i] ? el("mark", { text: sen }) : sen); });
+    box.append(p);
+  }
+  return box;
+}
+
+function answerTextFor(wrap, n) {
+  return [...wrap.querySelectorAll(`.ref[data-n="${n}"]`)].map((r) => (r.closest("li, p, h4") || r.parentElement).textContent).join(" ");
+}
+
+function openSource(wrap, n) {
+  const s = wrap._sources.find((x) => x.n === n);
+  if (!s) return;
+  document.querySelectorAll(".src-row.active, .ref[aria-expanded='true']").forEach((x) => { x.classList.remove("active"); x.removeAttribute("aria-expanded"); });
+  wrap.querySelectorAll(`.src-row[data-n="${n}"]`).forEach((x) => x.classList.add("active"));
+  wrap.querySelectorAll(`.ref[data-n="${n}"]`).forEach((x) => x.setAttribute("aria-expanded", "true"));
+  panelState.answerId = wrap.dataset.answer; panelState.n = n;
+
+  $("pDoc").textContent = s.doc_title || s.title;
+  $("pTitle").textContent = `§${s.section} ${s.heading}`;
+  $("pBadges").replaceWith(Object.assign(badgesFor(s), { id: "pBadges" }));
+  const body = $("pBody"); body.replaceChildren();
+  const policy = policyBlocks(s.blocks || [s.cited_text], s.cited_texts && s.cited_texts.length ? s.cited_texts : [s.cited_text], answerTextFor(wrap, n));
+  body.append(policy);
+  if (s.amends && s.amends.length) {
+    const target = s.amends[0];
+    const box = el("div", { class: "amends" },
+      el("div", { text: `This ${STATE_NAMES[s.jurisdiction] || ""} endorsement changes ${target.replace("HO3", "HO-3")} of the standard policy. Where they conflict, the endorsement wins.` }));
+    const btn = el("button", { type: "button", text: "Compare with the standard policy" });
+    btn.onclick = async () => {
+      btn.disabled = true;
+      const q = new URLSearchParams({ id: target, ...ctx() });
+      const r = await fetch("/api/section?" + q).catch(() => null);
+      if (!r || !r.ok) { btn.textContent = "Standard section unavailable"; return; }
+      const base = await r.json();
+      btn.remove();
+      body.append(el("div", { class: "compare" }, el("span", { class: "label mono", text: `Standard policy · HO-3 §${base.section} ${base.heading}` }), policyBlocks(base.blocks)));
+    };
+    box.append(btn); body.append(box);
+  }
+  $("pFoot").textContent = `${s.doc_version} · source ${n} of ${wrap._sources.length}`;
+  setPanel(true);
+  const first = policy.querySelector("[data-hit]");
+  if (first) { first.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    first.classList.add("flash"); setTimeout(() => first.classList.remove("flash"), 900); }
+}
+
+function setPanel(open) {
+  $("panel").hidden = !open; $("shell").classList.toggle("open", open);
+  const sheet = matchMedia("(max-width: 1080px)").matches;
+  $("scrim").hidden = !(open && sheet);
+  if (open) $("panel").focus({ preventScroll: true });
+  else document.querySelectorAll(".src-row.active, .ref[aria-expanded='true']").forEach((x) => { x.classList.remove("active"); x.removeAttribute("aria-expanded"); });
+}
+$("pClose").onclick = () => setPanel(false);
+$("scrim").onclick = () => setPanel(false);
+
+/* ---------- scope popover ---------- */
+function renderScope() {
+  if (!meta) return;
+  const { role, state } = ctx();
+  const visible = (d) => d.roles.includes(role) && (d.jurisdiction === "ALL" || d.jurisdiction === state);
+  const on = meta.documents.filter(visible), off = meta.documents.filter((d) => !visible(d));
+  $("scopeCount").textContent = `${on.length} documents`;
+  const row = (d, isOn) => el("div", { class: "doc-row" + (isOn ? "" : " off") }, el("span", { class: "dot" }),
+    el("div", {}, d.title, el("small", { text: isOn ? `${d.version}` :
+      (d.jurisdiction !== "ALL" && d.jurisdiction !== state ? `Only for ${STATE_NAMES[d.jurisdiction]} properties` : `Not available to ${ROLE_NAMES[role].toLowerCase()}s`) })));
+  $("scopePop").replaceChildren(el("h3", { text: "Searched for this question" }), on.map((d) => row(d, true)),
+    off.length ? el("h3", { text: "Not searched", style: "margin-top:14px" }) : null, off.map((d) => row(d, false)));
+}
+$("scopeBtn").onclick = (e) => {
+  const pop = $("scopePop"), open = pop.hidden;
+  pop.hidden = !open; $("scopeBtn").setAttribute("aria-expanded", String(open));
+  if (open) { const r = $("scopeBtn").getBoundingClientRect();
+    pop.style.top = r.bottom + 8 + window.scrollY + "px"; pop.style.left = Math.max(16, Math.min(r.right - pop.offsetWidth, window.innerWidth - pop.offsetWidth - 16)) + "px"; }
+  e.stopPropagation();
+};
+document.addEventListener("click", (e) => { if (!$("scopePop").hidden && !$("scopePop").contains(e.target)) { $("scopePop").hidden = true; $("scopeBtn").setAttribute("aria-expanded", "false"); } });
+
+/* ---------- context changes ---------- */
 function renderExamples() {
-  const box = $("examples"); box.replaceChildren();
-  for (const q of EXAMPLES[$("role").value] || []) {
-    const b = el("button", null, q); b.type = "button";
-    b.onclick = () => { $("q").value = q; $("f").requestSubmit(); };
-    box.append(b);
-  }
+  const box = $("examples"); if (!box) return;
+  box.replaceChildren(...(EXAMPLES[$("role").value] || []).map(([q, st]) =>
+    el("button", { class: "ex", type: "button", onclick: () => { if (st) { $("state").value = st; onContext(); } ask(q); } },
+      el("span", { text: q }), st ? el("span", { class: "tag mono", text: st }) : null)));
 }
-
-async function init() {
-  const meta = await (await fetch("/api/meta")).json();
-  for (const r of meta.roles) $("role").append(new Option(r[0].toUpperCase() + r.slice(1), r));
-  for (const s of meta.states) $("state").append(new Option(s === "OTHER" ? "Other / not listed" : s, s));
-  if (meta.offline) $("banner").style.display = "block";
-  $("role").onchange = () => { chatHistory.length = 0; renderExamples(); };
-  $("state").onchange = () => { chatHistory.length = 0; };
-  renderExamples();
-}
-
-function renderAnswer(a) {
-  const id = ++msgCount;
-  const box = el("div", "msg bot");
-  if (a.status !== "answered") box.append(el("div", "status", a.status.replace("_", " ")));
-  for (const seg of a.segments) {
-    box.append(el("span", seg.note ? "note" : null, seg.text));
-    for (const n of seg.refs) {
-      const r = el("button", "ref", n); r.type = "button"; r.title = "Show source";
-      r.onclick = () => { const d = box.querySelector("details"); d.open = true; const s = $(`src-${id}-${n}`); s.scrollIntoView({block: "nearest"}); s.classList.add("flash"); setTimeout(() => s.classList.remove("flash"), 1200); };
-      box.append(r);
-    }
+function onContext() {
+  renderScope(); renderExamples();
+  const now = `${ROLE_NAMES[$("role").value]} · ${STATE_NAMES[$("state").value]}`;
+  if (lastContext && now !== lastContext && answerCount) {
+    $("thread").append(el("div", { class: "divider", text: `Now asking as ${now}` }));
+    chatHistory = [];
   }
-  if (a.sources.length) {
-    const d = el("details"); d.append(el("summary", null, `${a.sources.length} source${a.sources.length > 1 ? "s" : ""}`));
-    for (const s of a.sources) {
-      const card = el("div", "src"); card.id = `src-${id}-${s.n}`;
-      card.append(el("b", null, `[${s.n}] ${s.title} · ${s.doc_version}`), el("span", null, s.cited_text));
-      d.append(card);
-    }
-    box.append(d);
-  }
-  const ms = Math.round(a.latency_ms.total || 0);
-  box.append(el("div", "meta", `${ms} ms · ${a.model}${a.cost_usd ? ` · $${a.cost_usd.toFixed(4)}` : ""} · trace ${a.trace_id}`));
-  $("log").append(box);
-  box.scrollIntoView({block: "end", behavior: "smooth"});
+  lastContext = now;
 }
+$("role").onchange = onContext; $("state").onchange = onContext;
 
-$("f").onsubmit = async (e) => {
-  e.preventDefault();
-  const question = $("q").value.trim(); if (!question) return;
-  $("q").value = ""; $("send").disabled = true;
-  $("log").append(el("div", "msg user", question));
+/* ---------- asking ---------- */
+const STEPS = ["Searching the documents you can see", "Reading the matching sections", "Checking citations and conditions"];
+async function ask(question) {
+  question = question.trim();
+  if (!question || busy) return;
+  busy = true; $("send").disabled = true; $("q").value = ""; autosize();
+  $("hero")?.remove();
+  const thread = $("thread");
+  thread.append(el("div", { class: "q", text: question }));
+  const status = el("span", { text: STEPS[0] });
+  const loading = el("div", { class: "a" }, el("div", { class: "thinking" }, el("span", { class: "pulse", "aria-hidden": "true" }, el("i"), el("i"), el("i")), status),
+    el("div", { class: "skeleton", "aria-hidden": "true" }, el("span", { style: "width:92%" }), el("span", { style: "width:78%" }), el("span", { style: "width:60%" })));
+  thread.append(loading); loading.scrollIntoView({ block: "end", behavior: "smooth" });
+  thread.setAttribute("aria-busy", "true");
+  let step = 0; const timer = setInterval(() => { step = Math.min(step + 1, STEPS.length - 1); status.textContent = STEPS[step]; }, 1600);
   try {
-    const res = await fetch("/api/ask", { method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ question, role: $("role").value, state: $("state").value, history: chatHistory }) });
+    const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, ...ctx(), history: chatHistory }) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const a = await res.json();
-    renderAnswer(a);
-    if (a.status === "answered") chatHistory.push({role: "user", content: question}, {role: "assistant", content: a.answer});
+    loading.replaceWith(renderAnswer(a, question));
+    if (a.status === "answered") chatHistory.push({ role: "user", content: question }, { role: "assistant", content: a.answer });
   } catch (err) {
-    $("log").append(el("div", "msg bot", `Request failed: ${err.message}`));
-  } finally { $("send").disabled = false; $("q").focus(); }
+    loading.replaceWith(renderAnswer({ status: "error", answer: "The request didn't go through.", segments: [], sources: [], trace_id: "—", latency_ms: {} }));
+  } finally {
+    clearInterval(timer); busy = false; thread.setAttribute("aria-busy", "false"); $("send").disabled = !$("q").value.trim(); $("q").focus();
+  }
+}
+function autosize() { const t = $("q"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 160) + "px"; }
+$("q").addEventListener("input", () => { autosize(); $("send").disabled = busy || !$("q").value.trim(); });
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask($("q").value); } });
+$("form").onsubmit = (e) => { e.preventDefault(); ask($("q").value); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (!$("scopePop").hidden) { $("scopePop").hidden = true; $("scopeBtn").focus(); } else if (!$("panel").hidden) setPanel(false); } });
+
+/* ---------- theme ---------- */
+function applyTheme(t) {
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  const dark = t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  $("themeBtn").replaceChildren(icon(dark ? "i-sun" : "i-moon"));
+  $("themeBtn").setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+}
+$("themeBtn").onclick = () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const next = dark ? "light" : "dark";
+  try { localStorage.setItem("cc-theme", next); } catch (_) {}
+  applyTheme(next);
 };
-$("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("f").requestSubmit(); } });
-init();
+let saved = null; try { saved = localStorage.getItem("cc-theme"); } catch (_) {}
+applyTheme(saved);
+
+/* ---------- boot ---------- */
+(async function init() {
+  try { meta = await (await fetch("/api/meta")).json(); } catch (_) { meta = { roles: Object.keys(ROLE_NAMES), states: ["CA", "TX", "OTHER"], documents: [], offline: false }; }
+  for (const r of meta.roles) $("role").append(new Option(ROLE_NAMES[r] || r, r));
+  for (const s of meta.states) $("state").append(new Option(STATE_NAMES[s] || s, s));
+  $("state").value = "CA";
+  if (matchMedia("(max-width: 720px)").matches) $("q").placeholder = "Ask about your policy";
+  $("offline").hidden = !meta.offline;
+  onContext();
+})();
 </script>
 </body>
 </html>

@@ -4,3 +4,4 @@ __pycache__/
 .env
 data/
 eval/reports/*-traces.jsonl
+.claude/

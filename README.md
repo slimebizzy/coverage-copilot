@@ -144,6 +144,22 @@ Run 1 surfaced one material error (g03). The California contents advance was des
 - **Two hung requests.** One took 611 s and one 99 s, because the SDK's default timeout is 10 minutes. The client now uses a 60 s timeout with 2 retries; run 2's slowest request was 15.9 s.
 - **Caching works but isn't the main cost lever.** The 1,293-token system prompt is cached after the first call (42% of input tokens served from cache). Most of the cost is output: answers average about 900 tokens. Shorter answers are the next cost lever.
 
+## Interface: designed for trust
+
+A chatbot that cites its sources is only useful if checking a source is easier than not checking it. The interface is built around that.
+
+| Design problem | What the UI does |
+|---|---|
+| Citations people never click | Each claim carries a numbered chip. Hovering or focusing it previews the cited policy text; clicking opens the full section beside the answer (a bottom sheet on phones). |
+| Citations point at whole paragraphs | The source panel highlights only the sentences the answer actually used, by word overlap with the lines that cite it. When nothing clearly matches, it marks the paragraph with a margin bar instead of pretending to be precise. |
+| "Does my state change this?" | Endorsement sources carry a state badge and an "Amends HO-3 §2.5" badge. One click shows the standard policy's version under it. The `/api/section` endpoint applies the same role and state check as retrieval, so comparing can't leak a section. |
+| Who can see what | The context bar shows the role and state the answer is for, and a documents popover lists what was searched and what wasn't ("Only for California properties", "Not available to policyholders"). Access control is visible, not just enforced. |
+| Refusals that feel like errors | Each non-answer has its own state, with a plain reason: not in your documents, outside scope, blocked by the input check, held back for having no citations. "Held back" is a feature: the user sees that an uncheckable answer was withheld. |
+| Conditions the model forgot | When the condition guard adds a condition, it appears as its own badge, not inline text. The badge says it was added by a policy check, so the user can tell the model's words from the guarantee. |
+| Learning from mistakes | Thumbs up/down with an optional note is stored against the request's `trace_id` (`/api/feedback`). That's the "adjuster disagreed" rate from the deployment memo. |
+
+Visual system: Young Serif for headings and policy text (documents should look like documents), Figtree for the interface, IBM Plex Mono for section numbers and metadata. Fog, sage and pine with an ochre highlighter; a deep-night dark theme. Built as one dependency-free HTML file with keyboard support, visible focus, `aria-live` answers, `prefers-reduced-motion`, and no horizontal scroll at 375 px. Answer markdown is rendered from a small, escaped subset; model output never reaches `innerHTML` unescaped.
+
 ## Design decisions and tradeoffs
 
 - **Search-result blocks instead of "please cite [1]" prompting.** Native citations return the exact cited text and source id as structured data. That makes citation enforcement a code check, not a regex over prose.
@@ -161,14 +177,14 @@ Run 1 surfaced one material error (g03). The California contents advance was des
 make setup                 # venv + dependencies (Python 3.9+)
 cp .env.example .env       # add ANTHROPIC_API_KEY, or leave empty for offline mode
 make run                   # http://localhost:8765
-make test                  # 46 tests, no network
+make test                  # 50 tests, no network
 make eval                  # retrieval + red team, free
 make eval-full             # end-to-end with Claude + LLM judge (about $1.50)
 ```
 
-Try these in the UI: switch **State** between CA and TX and ask about hotels after a wildfire, or hail deductibles. Switch **I am a** to Policyholder and ask for reserve authority. You'll get "not found", because those sections don't exist for that role.
+Try these in the UI: ask the California wildfire example, click source 2, then "Compare with the standard policy". Switch **Asking as** to Policyholder and ask for reserve authority; open the documents popover to see why the answer is "not in your documents".
 
-API: `POST /api/ask {question, role, state, history}` → `{status, answer, segments[{text, refs}], sources[{n, chunk_id, title, cited_text}], flags, usage, cost_usd, latency_ms, trace_id}`.
+API: `POST /api/ask {question, role, state, history}` → `{status, answer, segments[{text, refs, conditions}], sources[{n, chunk_id, heading, section, jurisdiction, amends, blocks, cited_texts}], flags, usage, cost_usd, latency_ms, trace_id}`. Also `GET /api/meta`, `GET /api/section?id&role&state`, `POST /api/feedback`, `GET /api/stats`.
 
 ## Roadmap
 

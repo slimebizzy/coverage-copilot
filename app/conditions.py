@@ -122,7 +122,8 @@ def used_sentence(cited_text: str, answer_text: str, min_overlap: float = 0.5) -
 
 
 def enforce(segments: List[dict]) -> List[str]:
-    """Mutates `segments` in place, appending qualifiers that are missing.
+    """Mutates `segments` in place, listing missing qualifiers under each
+    segment's "conditions" so the UI can show them as their own element.
 
     `segments` are [{text, refs, cited}] in answer order, where `cited` holds the
     exact source text each segment's citations point at. Rules are matched
@@ -147,7 +148,7 @@ def enforce(segments: List[dict]) -> List[str]:
         for rule in needed.values():
             if (line_start, rule.name) in added or rule.in_answer.search(scope):
                 continue
-            seg["text"] = seg["text"].rstrip() + f" [{rule.qualifier}]"
+            seg.setdefault("conditions", []).append(rule.qualifier)
             added.add((line_start, rule.name))
             flags.append(f"condition_added:{rule.name}")
     return flags

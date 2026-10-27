@@ -24,7 +24,7 @@ def test_g03_failure_gets_the_condition_appended():
             seg("we will offer a payment of no less than 30% of the Coverage C limit.", [CONTENTS_ADVANCE])]
     flags = enforce(segs)
     assert flags == ["condition_added:state_of_emergency"]
-    assert segs[1]["text"].endswith("[Applies only to a loss relating to a declared state of emergency.]")
+    assert segs[1]["conditions"] == ["Applies only to a loss relating to a declared state of emergency."]
 
 
 def test_condition_in_the_same_line_is_left_alone():
@@ -67,6 +67,8 @@ def test_pipeline_applies_the_guard_and_flags_it():
     assert a.status == "answered"
     assert "declared state of emergency" in a.answer
     assert "condition_added:state_of_emergency" in a.flags
+    assert a.segments[0]["conditions"] == ["Applies only to a loss relating to a declared state of emergency."]
+    assert a.answer.endswith("[Applies only to a loss relating to a declared state of emergency.]")
     assert all("cited" not in s for s in a.segments)
 
 
